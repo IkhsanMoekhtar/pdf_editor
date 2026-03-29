@@ -15,7 +15,7 @@ export default function EmptyState({ onUpload }) {
   const triggerUpload = () => fileInputRef.current.click();
 
   return (
-    <div className="empty-state desktop-scene" onClick={triggerUpload} style={{ margin: '20px', cursor: 'pointer' }}>
+    <div className="empty-state desktop-scene" onClick={triggerUpload} style={{ cursor: 'pointer' }}>
       <input 
         type="file" 
         accept="application/pdf" 
