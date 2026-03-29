@@ -63,11 +63,6 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
             <option value="medium">Medium (seimbang)</option>
             <option value="high">High (ukuran kecil)</option>
           </select>
-          <p className="compress-engine-info">
-            {backendStatus?.ghostscriptAvailable
-              ? `Mesin: Ghostscript (${backendStatus.ghostscriptCommand || 'aktif'})`
-              : 'Mesin: Fallback pdf-lib (install Ghostscript untuk kompres lebih kuat)'}
-          </p>
           {lastCompression && (
             <div className="compress-result-box">
               <p>{`Terakhir: ${formatBytes(lastCompression.originalSize)} -> ${formatBytes(lastCompression.compressedSize)}`}</p>
