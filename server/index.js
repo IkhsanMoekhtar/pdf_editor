@@ -14,10 +14,78 @@ const upload = multer({
 
 const PORT = Number(process.env.PORT || 8787);
 
-function mapCompressionLevel(level) {
-  if (level === 'high') return '/screen';
-  if (level === 'low') return '/printer';
-  return '/ebook';
+function getCompressionSettings(level) {
+  // Smart compression settings based on level
+  const settings = {
+    lossless: {
+      name: 'Lossless',
+      imageResolution: 300,
+      downsampling: false,
+      colorCompression: true,
+      removeMetadata: true,
+      quality: 'high'
+    },
+    balanced: {
+      name: 'Balanced',
+      imageResolution: 150,
+      downsampling: true,
+      colorCompression: true,
+      removeMetadata: true,
+      quality: 'medium'
+    },
+    aggressive: {
+      name: 'Aggressive',
+      imageResolution: 120,
+      downsampling: true,
+      colorCompression: true,
+      removeMetadata: true,
+      quality: 'low'
+    }
+  };
+  
+  return settings[level] || settings.balanced;
+}
+
+function buildGhostscriptArgs(settings, inputPath, outputPath) {
+  const args = [
+    '-sDEVICE=pdfwrite',
+    '-dCompatibilityLevel=1.4',
+    '-dNOPAUSE',
+    '-dQUIET',
+    '-dBATCH',
+    // Color and compression settings
+    '-dDetectDuplicateImages',
+    '-dCompressFonts=true',
+    '-r' + settings.imageResolution + 'x' + settings.imageResolution,
+    // Remove metadata for smaller size
+    '-dEmbedAllFonts=false',
+    '-dSubsetFonts=true',
+  ];
+
+  // Add downsampling for non-lossless
+  if (settings.downsampling) {
+    args.push('-dDownsampleColorImages=true');
+    args.push('-dDownsampleGrayImages=true');
+    args.push('-dDownsampleMonoImages=true');
+    args.push('-dColorImageResolution=' + settings.imageResolution);
+    args.push('-dGrayImageResolution=' + settings.imageResolution);
+    args.push('-dMonoImageResolution=' + settings.imageResolution);
+  }
+
+  // Quality settings
+  if (settings.quality === 'high') {
+    args.push('-dColorConversionStrategy=/Leave');
+  } else if (settings.quality === 'medium') {
+    args.push('-dColorConversionStrategy=/sRGB');
+  } else {
+    args.push('-dColorConversionStrategy=/Gray');
+  }
+
+  args.push('-dAutoRotatePages=/None');
+  args.push(`-sOutputFile=${outputPath}`);
+  args.push(inputPath);
+
+  return args;
 }
 
 async function commandExists(commandName) {
@@ -54,16 +122,9 @@ async function findGhostscriptCommand() {
 
 function runGhostscript(inputPath, outputPath, levelSetting, gsCommand) {
   return new Promise((resolve, reject) => {
-    const args = [
-      '-sDEVICE=pdfwrite',
-      '-dCompatibilityLevel=1.4',
-      '-dNOPAUSE',
-      '-dQUIET',
-      '-dBATCH',
-      `-dPDFSETTINGS=${levelSetting}`,
-      `-sOutputFile=${outputPath}`,
-      inputPath,
-    ];
+    // Get smart compression settings
+    const settings = getCompressionSettings(levelSetting);
+    const args = buildGhostscriptArgs(settings, inputPath, outputPath);
 
     const proc = spawn(gsCommand, args, { windowsHide: true });
     let stderr = '';
@@ -117,8 +178,7 @@ app.post('/api/compress', upload.single('pdf'), async (req, res) => {
     return;
   }
 
-  const level = req.body.level || 'medium';
-  const levelSetting = mapCompressionLevel(level);
+  const level = req.body.level || 'balanced';
 
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pdf-compress-'));
   const inputPath = path.join(tempDir, 'input.pdf');
@@ -133,7 +193,7 @@ app.post('/api/compress', upload.single('pdf'), async (req, res) => {
     let method = 'pdf-lib-fallback';
 
     if (gsCommand) {
-      await runGhostscript(inputPath, outputPath, levelSetting, gsCommand);
+      await runGhostscript(inputPath, outputPath, level, gsCommand);
       outputBuffer = await fs.readFile(outputPath);
       method = `ghostscript:${gsCommand}`;
     } else {
@@ -154,6 +214,7 @@ app.post('/api/compress', upload.single('pdf'), async (req, res) => {
     res.setHeader('X-Compressed-Size', String(compressedSize));
     res.setHeader('X-Saved-Bytes', String(savedBytes));
     res.setHeader('X-Saved-Percent', String(savedPercent));
+    res.setHeader('X-Compression-Level', level);
     res.send(outputBuffer);
   } catch (error) {
     console.error('Compression error:', error);

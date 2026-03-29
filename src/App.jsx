@@ -13,7 +13,7 @@ function App() {
   const [texts, setTexts] = useState([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
-  const [compressLevel, setCompressLevel] = useState('medium');
+  const [compressLevel, setCompressLevel] = useState('balanced');
   const [compressOnSave, setCompressOnSave] = useState(false);
   const [backendStatus, setBackendStatus] = useState({ ghostscriptAvailable: false, checked: false });
   const [lastCompression, setLastCompression] = useState(null);

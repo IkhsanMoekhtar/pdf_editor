@@ -59,9 +59,9 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
             onChange={(e) => setCompressLevel?.(e.target.value)}
             disabled={isCompressing}
           >
-            <option value="low">Low (kualitas tinggi)</option>
-            <option value="medium">Medium (seimbang)</option>
-            <option value="high">High (ukuran kecil)</option>
+            <option value="lossless">🔵 Lossless (Kualitas Sempurna)</option>
+            <option value="balanced">🟢 Balanced (Kualitas-Ukuran Seimbang)</option>
+            <option value="aggressive">🔴 Aggressive (Ukuran Minimal)</option>
           </select>
           {lastCompression && (
             <div className="compress-result-box">
