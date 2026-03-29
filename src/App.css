@@ -145,6 +145,32 @@
   cursor: not-allowed;
 }
 
+.compress-engine-info {
+  margin-top: 8px;
+  color: #9ca3af;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.compress-result-box {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  background: #0b0f19;
+}
+
+.compress-result-box p {
+  font-size: 0.74rem;
+  color: #d1d5db;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.compress-result-box p + p {
+  margin-top: 4px;
+}
+
 .arrow {
   font-size: 0.7rem;
   transition: transform 0.3s ease;

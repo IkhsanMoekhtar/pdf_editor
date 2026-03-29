@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PDFDocument, rgb, degrees, StandardFonts} from 'pdf-lib';
 import Sidebar from './components/layout/Sidebar';
 import EmptyState from './components/layout/EmptyState';
@@ -15,6 +15,27 @@ function App() {
   const [isCompressing, setIsCompressing] = useState(false);
   const [compressLevel, setCompressLevel] = useState('medium');
   const [compressOnSave, setCompressOnSave] = useState(false);
+  const [backendStatus, setBackendStatus] = useState({ ghostscriptAvailable: false, checked: false });
+  const [lastCompression, setLastCompression] = useState(null);
+
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const response = await fetch('/api/health');
+        if (!response.ok) throw new Error('health check gagal');
+        const data = await response.json();
+        setBackendStatus({
+          checked: true,
+          ghostscriptAvailable: Boolean(data.ghostscriptAvailable),
+          ghostscriptCommand: data.ghostscriptCommand || null,
+        });
+      } catch {
+        setBackendStatus({ checked: true, ghostscriptAvailable: false, ghostscriptCommand: null });
+      }
+    };
+
+    checkBackend();
+  }, []);
 
   // Fungsi mengubah warna HEX HTML ke RGB untuk pdf-lib
   const hexToPdfRgb = (hex) => {
@@ -39,6 +60,13 @@ function App() {
     link.download = fileName;
     link.click();
     URL.revokeObjectURL(link.href);
+  };
+
+  const formatBytes = (bytes) => {
+    if (!Number.isFinite(bytes) || bytes < 0) return '-';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
   const buildEditedPdfBlob = async () => {
@@ -137,9 +165,26 @@ function App() {
       const originalName = fileToCompress.name.replace(/\.[^/.]+$/, '');
       const compressedName = `${originalName}_compressed.pdf`;
 
+      const originalSize = Number(response.headers.get('x-original-size') || fileToCompress.size || 0);
+      const compressedSize = Number(response.headers.get('x-compressed-size') || compressedBlob.size || 0);
+      const savedPercent = Number(response.headers.get('x-saved-percent') || 0);
+      const method = response.headers.get('x-compression-method') || 'unknown';
+
+      setLastCompression({
+        originalSize,
+        compressedSize,
+        savedPercent,
+        method,
+      });
+
       downloadPdfBlob(compressedBlob, compressedName);
       setPdfFile(new File([compressedBlob], compressedName, { type: 'application/pdf' }));
-      alert(customMessage || 'PDF berhasil dikompres. File baru juga sudah dimuat ke editor.');
+      const defaultMessage = [
+        'PDF berhasil dikompres.',
+        `Ukuran: ${formatBytes(originalSize)} -> ${formatBytes(compressedSize)} (${savedPercent.toFixed(2)}%)`,
+        `Metode: ${method}`,
+      ].join('\n');
+      alert(customMessage || defaultMessage);
     } catch (error) {
       console.error('Gagal kompres PDF:', error);
       alert(error.message || 'Terjadi kesalahan saat mengompres PDF.');
@@ -156,7 +201,7 @@ function App() {
 
       if (compressOnSave) {
         const editedFile = new File([blob], fileName, { type: 'application/pdf' });
-        await handleCompressPdf(compressLevel, editedFile, 'PDF berhasil disimpan dan dikompres.');
+        await handleCompressPdf(compressLevel, editedFile);
       } else {
         downloadPdfBlob(blob, fileName);
       }
@@ -186,6 +231,8 @@ function App() {
         setCompressLevel={setCompressLevel}
         compressOnSave={compressOnSave}
         setCompressOnSave={setCompressOnSave}
+        backendStatus={backendStatus}
+        lastCompression={lastCompression}
         isCompressing={isCompressing}
         isMobileOpen={isSidebarOpen}
         onCloseMobile={() => setIsSidebarOpen(false)}

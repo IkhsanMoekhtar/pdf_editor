@@ -84,8 +84,14 @@ async function fallbackCompressWithPdfLib(pdfBytes) {
   });
 }
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'pdf-compress-service' });
+app.get('/api/health', async (_req, res) => {
+  const gsCommand = await findGhostscriptCommand();
+  res.json({
+    ok: true,
+    service: 'pdf-compress-service',
+    ghostscriptAvailable: Boolean(gsCommand),
+    ghostscriptCommand: gsCommand,
+  });
 });
 
 app.post('/api/compress', upload.single('pdf'), async (req, res) => {
@@ -112,18 +118,30 @@ app.post('/api/compress', upload.single('pdf'), async (req, res) => {
     const gsCommand = await findGhostscriptCommand();
 
     let outputBuffer;
+    let method = 'pdf-lib-fallback';
 
     if (gsCommand) {
       await runGhostscript(inputPath, outputPath, levelSetting, gsCommand);
       outputBuffer = await fs.readFile(outputPath);
+      method = `ghostscript:${gsCommand}`;
     } else {
       // Fallback tetap fungsional jika Ghostscript belum terpasang.
       const pdfBytes = await fallbackCompressWithPdfLib(req.file.buffer);
       outputBuffer = Buffer.from(pdfBytes);
     }
 
+    const originalSize = req.file.buffer.length;
+    const compressedSize = outputBuffer.length;
+    const savedBytes = Math.max(originalSize - compressedSize, 0);
+    const savedPercent = originalSize > 0 ? ((savedBytes / originalSize) * 100).toFixed(2) : '0.00';
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="compressed.pdf"');
+    res.setHeader('X-Compression-Method', method);
+    res.setHeader('X-Original-Size', String(originalSize));
+    res.setHeader('X-Compressed-Size', String(compressedSize));
+    res.setHeader('X-Saved-Bytes', String(savedBytes));
+    res.setHeader('X-Saved-Percent', String(savedPercent));
     res.send(outputBuffer);
   } catch (error) {
     console.error('Compression error:', error);

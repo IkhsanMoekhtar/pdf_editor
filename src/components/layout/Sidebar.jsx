@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 
-export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, isCompressing, isMobileOpen, onCloseMobile }) {
+export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, backendStatus, lastCompression, isCompressing, isMobileOpen, onCloseMobile }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
+
+  const formatBytes = (bytes) => {
+    if (!Number.isFinite(bytes) || bytes < 0) return '-';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
 
   const closeIfMobile = () => {
     if (typeof window !== 'undefined' && window.innerWidth <= 900) {
@@ -56,6 +63,17 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
             <option value="medium">Medium (seimbang)</option>
             <option value="high">High (ukuran kecil)</option>
           </select>
+          <p className="compress-engine-info">
+            {backendStatus?.ghostscriptAvailable
+              ? `Mesin: Ghostscript (${backendStatus.ghostscriptCommand || 'aktif'})`
+              : 'Mesin: Fallback pdf-lib (install Ghostscript untuk kompres lebih kuat)'}
+          </p>
+          {lastCompression && (
+            <div className="compress-result-box">
+              <p>{`Terakhir: ${formatBytes(lastCompression.originalSize)} -> ${formatBytes(lastCompression.compressedSize)}`}</p>
+              <p>{`Hemat: ${lastCompression.savedPercent.toFixed(2)}%`}</p>
+            </div>
+          )}
         </div>
 
         <div className={`nav-group ${expandedMenu === 'convert' ? 'expanded' : ''}`}>
