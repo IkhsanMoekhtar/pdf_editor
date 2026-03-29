@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 
-export default function Sidebar({ activeTool, setActiveTool, onSave }) {
+export default function Sidebar({ activeTool, setActiveTool, onSave, isMobileOpen, onCloseMobile }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
+
+  const closeIfMobile = () => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 900) {
+      onCloseMobile?.();
+    }
+  };
 
   const toggleMenu = (menuName) => {
     setExpandedMenu(prev => prev === menuName ? null : menuName);
@@ -12,15 +18,22 @@ export default function Sidebar({ activeTool, setActiveTool, onSave }) {
   };
 
   return (
-    <aside className="main-sidebar">
+    <aside className={`main-sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
       <div className="brand">
         <strong>PDF Editor</strong>
+        <button
+          className="mobile-close-btn"
+          onClick={onCloseMobile}
+          aria-label="Tutup sidebar"
+        >
+          ×
+        </button>
       </div>
       
       <nav className="sidebar-nav">
-        <button className="nav-item">GABUNG PDF</button>
-        <button className="nav-item">PISAH PDF</button>
-        <button className="nav-item">KOMPRES PDF</button>
+        <button className="nav-item" onClick={closeIfMobile}>GABUNG PDF</button>
+        <button className="nav-item" onClick={closeIfMobile}>PISAH PDF</button>
+        <button className="nav-item" onClick={closeIfMobile}>KOMPRES PDF</button>
 
         <div className={`nav-group ${expandedMenu === 'convert' ? 'expanded' : ''}`}>
           <button className="nav-item has-arrow" onClick={() => toggleMenu('convert')}>
@@ -28,16 +41,16 @@ export default function Sidebar({ activeTool, setActiveTool, onSave }) {
           </button>
           <div className="submenu">
             <div className="submenu-title">KE PDF</div>
-            <button className="submenu-btn"><span className="doc-icon icon-jpg">J</span> JPG ke PDF</button>
-            <button className="submenu-btn"><span className="doc-icon icon-word">W</span> WORD ke PDF</button>
-            <button className="submenu-btn"><span className="doc-icon icon-ppt">P</span> PPT ke PDF</button>
-            <button className="submenu-btn"><span className="doc-icon icon-excel">X</span> EXCEL ke PDF</button>
+            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-jpg">J</span> JPG ke PDF</button>
+            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-word">W</span> WORD ke PDF</button>
+            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-ppt">P</span> PPT ke PDF</button>
+            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-excel">X</span> EXCEL ke PDF</button>
             
             <div className="submenu-title" style={{ marginTop: '10px' }}>DARI PDF</div>
-            <button className="submenu-btn"><span className="doc-icon icon-jpg">J</span> PDF ke JPG</button>
-            <button className="submenu-btn"><span className="doc-icon icon-word">W</span> PDF ke WORD</button>
-            <button className="submenu-btn"><span className="doc-icon icon-ppt">P</span> PDF ke PPT</button>
-            <button className="submenu-btn"><span className="doc-icon icon-excel">X</span> PDF ke EXCEL</button>
+            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-jpg">J</span> PDF ke JPG</button>
+            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-word">W</span> PDF ke WORD</button>
+            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-ppt">P</span> PDF ke PPT</button>
+            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-excel">X</span> PDF ke EXCEL</button>
           </div>
         </div>
 
@@ -46,13 +59,13 @@ export default function Sidebar({ activeTool, setActiveTool, onSave }) {
             ALAT EDITING <span className="arrow">▼</span>
           </button>
           <div className="submenu">
-            <button className={`submenu-btn ${activeTool === 'text' ? 'active' : ''}`} onClick={() => handleToolClick('text')}>
+            <button className={`submenu-btn ${activeTool === 'text' ? 'active' : ''}`} onClick={() => { handleToolClick('text'); closeIfMobile(); }}>
               <span className="doc-icon icon-pdf">T</span> Tambah Teks
             </button>
-            <button className={`submenu-btn ${activeTool === 'draw' ? 'active' : ''}`} onClick={() => handleToolClick('draw')}>
+            <button className={`submenu-btn ${activeTool === 'draw' ? 'active' : ''}`} onClick={() => { handleToolClick('draw'); closeIfMobile(); }}>
               <span className="doc-icon icon-pdf">C</span> Coretan Bebas
             </button>
-            <button className={`submenu-btn ${activeTool === 'highlight' ? 'active' : ''}`} onClick={() => handleToolClick('highlight')}>
+            <button className={`submenu-btn ${activeTool === 'highlight' ? 'active' : ''}`} onClick={() => { handleToolClick('highlight'); closeIfMobile(); }}>
               <span className="doc-icon icon-pdf">H</span> Highlight Area
             </button>
           </div>
@@ -60,7 +73,7 @@ export default function Sidebar({ activeTool, setActiveTool, onSave }) {
       </nav>
 
       <div className="sidebar-footer">
-        <button className="save-btn" onClick={onSave}>
+        <button className="save-btn" onClick={() => { onSave(); closeIfMobile(); }}>
           💾 Simpan File
         </button>
       </div>

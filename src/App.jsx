@@ -11,6 +11,7 @@ function App() {
   const [drawings, setDrawings] = useState([]);
   const [rotation, setRotation] = useState(0);
   const [texts, setTexts] = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Fungsi mengubah warna HEX HTML ke RGB untuk pdf-lib
   const hexToPdfRgb = (hex) => {
@@ -103,11 +104,29 @@ function App() {
 
   return (
     <div className="app-container">
+      <button
+        className={`mobile-menu-btn ${isSidebarOpen ? 'hidden' : ''}`}
+        onClick={() => setIsSidebarOpen(true)}
+        aria-label="Buka menu sidebar"
+      >
+        Menu
+      </button>
+
       <Sidebar 
         activeTool={activeTool} 
         setActiveTool={setActiveTool} 
         onSave={savePdfWithDrawings} 
+        isMobileOpen={isSidebarOpen}
+        onCloseMobile={() => setIsSidebarOpen(false)}
       />
+
+      {isSidebarOpen && (
+        <button
+          className="sidebar-backdrop"
+          aria-label="Tutup menu sidebar"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
 
       <main className="workspace">
         {pdfFile ? (
