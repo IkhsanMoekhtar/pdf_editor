@@ -38,6 +38,17 @@ async function findGhostscriptCommand() {
     if (await commandExists(cmd)) return cmd;
   }
 
+  // Check Windows default installation directory
+  if (process.platform === 'win32') {
+    try {
+      const gsBin = 'C:\\Program Files\\gs\\gs10.07.0\\bin\\gswin64c.exe';
+      await fs.access(gsBin);
+      return gsBin;
+    } catch {
+      // File doesn't exist, continue
+    }
+  }
+
   return null;
 }
 
@@ -86,6 +97,7 @@ async function fallbackCompressWithPdfLib(pdfBytes) {
 
 app.get('/api/health', async (_req, res) => {
   const gsCommand = await findGhostscriptCommand();
+  console.log('[Health Check] Found Ghostscript:', gsCommand);
   res.json({
     ok: true,
     service: 'pdf-compress-service',
