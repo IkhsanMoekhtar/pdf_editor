@@ -223,6 +223,20 @@
   border-top: 1px solid #1f2937;
 }
 
+.compress-on-save-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d1d5db;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+  user-select: none;
+}
+
+.compress-on-save-toggle input {
+  accent-color: #ef4444;
+}
+
 .save-btn {
   width: 100%;
   padding: 12px;
@@ -238,6 +252,11 @@
 }
 
 .save-btn:hover { background-color: #dc2626; }
+
+.save-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
 
 /* --- AREA KERJA UTAMA --- */
 .workspace {

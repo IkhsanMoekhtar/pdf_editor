@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, compressLevel, setCompressLevel, isCompressing, isMobileOpen, onCloseMobile }) {
+export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, isCompressing, isMobileOpen, onCloseMobile }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
 
   const closeIfMobile = () => {
@@ -96,8 +96,17 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
       </nav>
 
       <div className="sidebar-footer">
-        <button className="save-btn" onClick={() => { onSave(); closeIfMobile(); }}>
-          💾 Simpan File
+        <label className="compress-on-save-toggle">
+          <input
+            type="checkbox"
+            checked={compressOnSave}
+            onChange={(e) => setCompressOnSave?.(e.target.checked)}
+          />
+          <span>Kompres saat simpan</span>
+        </label>
+
+        <button className="save-btn" disabled={isCompressing} onClick={() => { onSave(); closeIfMobile(); }}>
+          {isCompressing ? '⏳ Memproses...' : compressOnSave ? '💾 Simpan + Kompres' : '💾 Simpan File'}
         </button>
       </div>
     </aside>
