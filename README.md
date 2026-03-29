@@ -1,18 +1,45 @@
-# React + Vite
+# PDF Editor (React + Vite + Node)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Project ini sekarang memiliki:
+- Frontend React + Vite untuk editing PDF.
+- Backend Node.js untuk fitur kompres PDF di endpoint `/api/compress`.
 
-Currently, two official plugins are available:
+## Menjalankan Project
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Install dependency:
 
-## React Compiler
+```bash
+npm install
+```
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+Jalankan frontend + backend sekaligus:
 
-Note: This will impact Vite dev & build performances.
+```bash
+npm run dev:full
+```
 
-## Expanding the ESLint configuration
+Atau jalankan terpisah:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm run server
+npm run dev
+```
+
+## Kompres PDF (Node Backend)
+
+Fitur `KOMPRES PDF` dari sidebar akan mengirim file ke backend Node:
+- Endpoint: `POST /api/compress`
+- Form-data:
+	- `pdf`: file PDF
+	- `level`: `low` | `medium` | `high`
+
+### Kualitas Kompresi
+
+- Jika Ghostscript terpasang di sistem, backend otomatis menggunakannya untuk kompresi lebih kuat.
+- Jika Ghostscript belum ada, backend tetap berjalan dengan fallback kompresi berbasis `pdf-lib`.
+
+## Build Production
+
+```bash
+npm run build
+```

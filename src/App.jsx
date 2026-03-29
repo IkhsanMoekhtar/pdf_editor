@@ -12,6 +12,8 @@ function App() {
   const [rotation, setRotation] = useState(0);
   const [texts, setTexts] = useState([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressLevel, setCompressLevel] = useState('medium');
 
   // Fungsi mengubah warna HEX HTML ke RGB untuk pdf-lib
   const hexToPdfRgb = (hex) => {
@@ -102,6 +104,57 @@ function App() {
     }
   };
 
+  const handleCompressPdf = async (level = 'medium') => {
+    if (!pdfFile) {
+      alert('Silakan upload PDF terlebih dahulu.');
+      return;
+    }
+
+    if (isCompressing) return;
+    setIsCompressing(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('pdf', pdfFile);
+      formData.append('level', level);
+
+      const response = await fetch('/api/compress', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let message = 'Gagal mengompres PDF.';
+        try {
+          const errorData = await response.json();
+          message = errorData.error || message;
+        } catch {
+          // Abaikan parse error dan pakai pesan default.
+        }
+        throw new Error(message);
+      }
+
+      const compressedBlob = await response.blob();
+      const originalName = pdfFile.name.replace(/\.[^/.]+$/, '');
+      const compressedName = `${originalName}_compressed.pdf`;
+
+      const downloadUrl = URL.createObjectURL(compressedBlob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = compressedName;
+      link.click();
+      URL.revokeObjectURL(downloadUrl);
+
+      setPdfFile(new File([compressedBlob], compressedName, { type: 'application/pdf' }));
+      alert('PDF berhasil dikompres. File baru juga sudah dimuat ke editor.');
+    } catch (error) {
+      console.error('Gagal kompres PDF:', error);
+      alert(error.message || 'Terjadi kesalahan saat mengompres PDF.');
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
   return (
     <div className="app-container">
       <button
@@ -116,6 +169,10 @@ function App() {
         activeTool={activeTool} 
         setActiveTool={setActiveTool} 
         onSave={savePdfWithDrawings} 
+        onCompress={handleCompressPdf}
+        compressLevel={compressLevel}
+        setCompressLevel={setCompressLevel}
+        isCompressing={isCompressing}
         isMobileOpen={isSidebarOpen}
         onCloseMobile={() => setIsSidebarOpen(false)}
       />

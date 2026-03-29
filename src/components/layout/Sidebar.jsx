@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function Sidebar({ activeTool, setActiveTool, onSave, isMobileOpen, onCloseMobile }) {
+export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, compressLevel, setCompressLevel, isCompressing, isMobileOpen, onCloseMobile }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
 
   const closeIfMobile = () => {
@@ -33,7 +33,30 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, isMobileOpe
       <nav className="sidebar-nav">
         <button className="nav-item" onClick={closeIfMobile}>GABUNG PDF</button>
         <button className="nav-item" onClick={closeIfMobile}>PISAH PDF</button>
-        <button className="nav-item" onClick={closeIfMobile}>KOMPRES PDF</button>
+        <button
+          className="nav-item"
+          onClick={() => {
+            onCompress?.(compressLevel);
+            closeIfMobile();
+          }}
+          disabled={isCompressing}
+        >
+          {isCompressing ? 'MENGOMPRES...' : 'KOMPRES PDF'}
+        </button>
+        <div className="compress-level-wrap">
+          <label htmlFor="compress-level" className="compress-level-label">Level Kompresi</label>
+          <select
+            id="compress-level"
+            className="compress-level-select"
+            value={compressLevel}
+            onChange={(e) => setCompressLevel?.(e.target.value)}
+            disabled={isCompressing}
+          >
+            <option value="low">Low (kualitas tinggi)</option>
+            <option value="medium">Medium (seimbang)</option>
+            <option value="high">High (ukuran kecil)</option>
+          </select>
+        </div>
 
         <div className={`nav-group ${expandedMenu === 'convert' ? 'expanded' : ''}`}>
           <button className="nav-item has-arrow" onClick={() => toggleMenu('convert')}>
