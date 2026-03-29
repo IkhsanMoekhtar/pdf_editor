@@ -1,0 +1,143 @@
+/* --- TATA LETAK UTAMA --- */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-family: sans-serif;
+  background-color: #e5e7eb;
+}
+
+/* --- TOPBAR --- */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #1f2937;
+  color: white;
+  padding: 10px 20px;
+  height: 60px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  z-index: 10;
+}
+
+.brand { font-size: 1.2rem; letter-spacing: 1px; }
+.tools-group { display: flex; gap: 10px; }
+
+.tool-btn {
+  padding: 8px 16px;
+  background-color: #374151;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.tool-btn:hover { background-color: #4b5563; }
+.tool-btn.active { background-color: #3b82f6; }
+.save-btn { background-color: #10b981; }
+.save-btn:hover { background-color: #059669; }
+
+/* --- AREA KERJA UTAMA --- */
+.workspace {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+.viewer-container {
+  width: 100%;
+  height: 100%;
+  background-color: #d1d5db;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* --- DESAIN AREA KOSONG (KLIK UNTUK UPLOAD) --- */
+.empty-state.desktop-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  background-color: #f9fafb;
+  position: relative;
+  padding: 40px;
+  overflow: hidden;
+  cursor: pointer; /* Mengubah kursor menjadi tangan (menandakan bisa diklik) */
+  transition: background-color 0.3s ease;
+}
+
+/* Sedikit penggelapan latar belakang saat area disorot mouse */
+.empty-state.desktop-scene:hover {
+  background-color: #f3f4f6;
+}
+
+.clipboard {
+  width: 280px; height: 380px;
+  background-color: #d8c2a3;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  transform: rotate(-3deg);
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 40px;
+  transition: transform 0.3s ease;
+}
+
+.empty-state.desktop-scene:hover .clipboard {
+  transform: rotate(0deg) scale(1.03);
+}
+
+.clipboard-paper {
+  width: 90%; height: 90%; background-color: #ffffff;
+  border-radius: 8px; padding: 20px;
+  display: flex; flex-direction: column; gap: 15px;
+}
+
+.clipboard-header {
+  font-weight: bold; color: #1f2937;
+  border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; text-align: center;
+}
+
+.clipboard-content { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.empty-line { height: 10px; background-color: #e5e7eb; border-radius: 5px; }
+.empty-line.large { width: 90%; }
+.empty-line.medium { width: 60%; }
+
+.desk-item { position: absolute; font-size: 3.5rem; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); }
+.coffee-cup { top: 40px; right: 40px; transform: rotate(5deg); }
+.pens { bottom: 40px; left: 40px; display: flex; gap: 10px; transform: rotate(-10deg); }
+
+.message-container { text-align: center; max-width: 500px; margin-bottom: 30px; }
+.message-container h3 { font-size: 1.8rem; color: #1f2937; font-weight: 700; margin-bottom: 10px; }
+.message-container p { color: #6b7280; line-height: 1.6; }
+
+.start-hint-pil {
+  display: flex; align-items: center; gap: 12px;
+  background-color: #1f2937; color: #ffffff;
+  padding: 12px 24px; border-radius: 999px;
+  font-weight: bold; box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+  transition: all 0.2s;
+}
+
+.empty-state.desktop-scene:hover .start-hint-pil {
+  background-color: #3b82f6; /* Berubah menjadi biru saat disorot */
+  transform: translateY(-2px);
+}
+
+/* Animasi Ikon Mouse bergerak naik turun */
+.bouncy-arrow {
+  display: inline-block;
+  font-size: 1.3rem;
+  animation: bounce-vertical-hint 1.5s infinite;
+}
+
+@keyframes bounce-vertical-hint {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}

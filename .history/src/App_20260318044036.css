@@ -1,0 +1,117 @@
+/* --- TATA LETAK UTAMA (DESKTOP) --- */
+.app-container {
+  display: flex;
+  height: 100vh;
+  font-family: sans-serif;
+  background-color: #f3f4f6;
+  flex-direction: row; /* Menyamping: Kiri sidebar, kanan viewer */
+}
+
+.sidebar {
+  width: 250px;
+  background-color: #1f2937;
+  color: white;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  height: 100%;
+}
+
+/* --- ELEMEN DI DALAM SIDEBAR --- */
+.upload-label {
+  padding: 15px;
+  background-color: #10b981;
+  color: white;
+  text-align: center;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 20px;
+  display: block;
+}
+
+.tools-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.tool-btn {
+  padding: 10px 15px;
+  background-color: #374151;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.tool-btn.active {
+  background-color: #3b82f6; /* Warna biru saat alat dipilih */
+}
+
+.save-btn {
+  background-color: #ef4444;
+  margin-top: auto; /* Mendorong tombol ke paling bawah */
+  width: 100%;
+}
+
+/* --- AREA PENAMPIL PDF --- */
+.viewer-container {
+  flex: 1;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* =========================================
+   MEDIA QUERY: TATA LETAK UNTUK HP/TABLET
+   ========================================= */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column; /* Ubah menjadi atas-bawah */
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    width: 100%;
+    padding: 15px;
+    /* Menghilangkan margin auto pada save-btn agar tidak aneh di HP */
+  }
+
+  .tools-group {
+    flex-direction: row; /* Susun tombol alat menyamping di HP */
+    flex-wrap: wrap; /* Jika tidak muat, turun ke baris bawahnya */
+  }
+
+  .tool-btn {
+    flex: 1; /* Tombol berbagi lebar rata */
+    min-width: 120px;
+    text-align: center;
+  }
+
+  .main-content {
+    padding: 10px;
+    height: 60vh; /* Memberi ruang khusus untuk penampil PDF di HP */
+  }
+
+  .save-btn {
+    margin-top: 10px;
+  }
+}

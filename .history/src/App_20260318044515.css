@@ -1,0 +1,137 @@
+/* --- TATA LETAK UTAMA --- */
+.app-container {
+  display: flex;
+  flex-direction: column; /* Menyusun Topbar ke atas, Workspace ke bawah */
+  height: 100vh;
+  font-family: sans-serif;
+  background-color: #e5e7eb;
+}
+
+/* --- TOPBAR (Menu Atas) --- */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #1f2937;
+  color: white;
+  padding: 10px 20px;
+  height: 60px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  z-index: 10; /* Memastikan topbar selalu berada di atas elemen lain */
+}
+
+.brand {
+  font-size: 1.2rem;
+  letter-spacing: 1px;
+}
+
+.tools-group {
+  display: flex;
+  gap: 10px;
+}
+
+.tool-btn {
+  padding: 8px 16px;
+  background-color: #374151;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.tool-btn:hover { background-color: #4b5563; }
+.tool-btn.active { background-color: #3b82f6; }
+.save-btn { background-color: #10b981; }
+.save-btn:hover { background-color: #059669; }
+
+/* --- AREA KERJA UTAMA --- */
+.workspace {
+  flex: 1;
+  display: flex;
+  position: relative; /* Penting! Menjadi patokan letak absolut untuk sidebar */
+  overflow: hidden;
+}
+
+/* --- MAGIC: SIDEBAR SLIDE (Hover Trigger) --- */
+.slide-sidebar {
+  position: absolute; /* Melayang di atas PDF */
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 15px; /* Area pemicu yang sangat tipis di kiri layar */
+  background-color: rgba(31, 41, 55, 0.95);
+  color: white;
+  z-index: 50;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Efek animasi mulus */
+  overflow: hidden;
+  box-shadow: 5px 0 15px rgba(0,0,0,0.3);
+  display: flex;
+}
+
+/* Saat mouse menyentuh area 15px tersebut, lebarkan jadi 280px */
+.slide-sidebar:hover {
+  width: 280px;
+}
+
+/* Panah kecil penanda sidebar */
+.sidebar-hint {
+  min-width: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #9ca3af;
+  opacity: 1;
+  transition: opacity 0.2s;
+}
+
+/* Sembunyikan panah saat sidebar terbuka */
+.slide-sidebar:hover .sidebar-hint {
+  opacity: 0;
+  min-width: 0;
+}
+
+/* Isi dari sidebar */
+.sidebar-content {
+  width: 265px; /* Sisa lebar setelah dikurangi hint */
+  padding: 20px;
+  opacity: 0; /* Teks disembunyikan awalnya */
+  transition: opacity 0.3s;
+  white-space: nowrap; /* Mencegah teks berantakan saat proses animasi */
+}
+
+/* Tampilkan teks hanya saat sidebar terbuka penuh */
+.slide-sidebar:hover .sidebar-content {
+  opacity: 1;
+  transition-delay: 0.1s; /* Menunda teks muncul agar tidak kaku */
+}
+
+.upload-label {
+  display: block;
+  padding: 12px;
+  background-color: #3b82f6;
+  color: white;
+  text-align: center;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.upload-label:hover { background-color: #2563eb; }
+
+/* --- AREA PENAMPIL PDF --- */
+.viewer-container {
+  width: 100%;
+  height: 100%;
+  background-color: #d1d5db;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.empty-state {
+  color: #6b7280;
+  text-align: center;
+}
