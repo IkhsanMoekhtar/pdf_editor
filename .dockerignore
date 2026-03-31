@@ -1,0 +1,16 @@
+node_modules
+dist
+.history
+.git
+.gitignore
+.vscode
+*.log
+tmp-*.pdf
+tmp-*.txt
+README.md
+SECURITY_AUDIT.md
+src
+public
+index.html
+vite.config.js
+eslint.config.js
