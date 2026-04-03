@@ -82,7 +82,7 @@ function getCompressionSettings(level) {
       imageResolution: 96,
       downsampling: true,
       pdfPreset: '/screen',
-      colorStrategy: 'sRGB'
+      colorStrategy: 'RGB'
     },
     lossless: {
       name: 'Lossless',
@@ -96,14 +96,14 @@ function getCompressionSettings(level) {
       imageResolution: 120,
       downsampling: true,
       pdfPreset: '/ebook',
-      colorStrategy: 'sRGB'
+      colorStrategy: 'RGB'
     },
     aggressive: {
       name: 'Aggressive',
       imageResolution: 96,
       downsampling: true,
       pdfPreset: '/screen',
-      colorStrategy: 'sRGB'
+      colorStrategy: 'RGB'
     }
   };
   
