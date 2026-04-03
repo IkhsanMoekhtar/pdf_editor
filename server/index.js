@@ -89,9 +89,12 @@ function getCompressionSettings(level) {
       name: 'Lossless',
       imageResolution: 300,
       downsampling: false,
-      pdfPreset: '/prepress',
+      pdfPreset: null,
+      compatibilityLevel: '1.7',
       colorStrategy: 'LeaveColorUnchanged',
       jpegQuality: null,
+      preserveFonts: true,
+      passThroughImages: true,
     },
     balanced: {
       name: 'Balanced',
@@ -117,17 +120,26 @@ function getCompressionSettings(level) {
 function buildGhostscriptArgs(settings, inputPath, outputPath) {
   const args = [
     '-sDEVICE=pdfwrite',
-    '-dCompatibilityLevel=1.4',
+    `-dCompatibilityLevel=${settings.compatibilityLevel || '1.4'}`,
     '-dNOPAUSE',
     '-dQUIET',
     '-dBATCH',
-    // Keep args minimal for faster processing.
-    `-dPDFSETTINGS=${settings.pdfPreset}`,
-    '-dCompressFonts=true',
     '-r' + settings.imageResolution + 'x' + settings.imageResolution,
-    '-dEmbedAllFonts=false',
-    '-dSubsetFonts=true',
   ];
+
+  if (settings.pdfPreset) {
+    args.push(`-dPDFSETTINGS=${settings.pdfPreset}`);
+  }
+
+  if (settings.preserveFonts) {
+    args.push('-dCompressFonts=false');
+    args.push('-dEmbedAllFonts=true');
+    args.push('-dSubsetFonts=false');
+  } else {
+    args.push('-dCompressFonts=true');
+    args.push('-dEmbedAllFonts=false');
+    args.push('-dSubsetFonts=true');
+  }
 
   // Add downsampling for non-lossless
   if (settings.downsampling) {
@@ -148,6 +160,11 @@ function buildGhostscriptArgs(settings, inputPath, outputPath) {
       args.push('-dGrayImageFilter=/DCTEncode');
       args.push('-dJPEGQ=' + settings.jpegQuality);
     }
+  }
+
+  if (settings.passThroughImages) {
+    args.push('-dPassThroughJPEGImages=true');
+    args.push('-dPassThroughJPXImages=true');
   }
 
   args.push(`-sColorConversionStrategy=${settings.colorStrategy}`);
