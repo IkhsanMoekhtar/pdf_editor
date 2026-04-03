@@ -152,6 +152,31 @@
   line-height: 1.35;
 }
 
+.compress-backend-status {
+  margin-top: 8px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.compress-backend-status.ok {
+  color: #86efac;
+}
+
+.compress-backend-status.warning {
+  color: #fca5a5;
+}
+
+.compress-warning-badge {
+  margin-top: 8px;
+  border: 1px solid #7f1d1d;
+  background: #2b1010;
+  color: #fecaca;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 .compress-result-box {
   margin-top: 8px;
   padding: 8px;

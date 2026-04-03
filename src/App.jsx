@@ -5,6 +5,24 @@ import EmptyState from './components/layout/EmptyState';
 import PdfViewer from './components/pdf/PdfViewer';
 import './App.css';
 
+const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+const normalizedApiBaseUrl = rawApiBaseUrl.replace(/\/$/, '');
+const hfToken = (import.meta.env.VITE_HF_TOKEN || '').trim();
+const apiUrl = (path) => (normalizedApiBaseUrl ? `${normalizedApiBaseUrl}${path}` : path);
+const shouldAttachHfToken = normalizedApiBaseUrl.includes('.hf.space') && hfToken;
+
+const apiFetch = (path, options = {}) => {
+  const headers = new Headers(options.headers || {});
+  if (shouldAttachHfToken && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${hfToken}`);
+  }
+
+  return fetch(apiUrl(path), {
+    ...options,
+    headers,
+  });
+};
+
 function App() {
   const [pdfFile, setPdfFile] = useState(null);
   const [activeTool, setActiveTool] = useState(null);
@@ -21,7 +39,7 @@ function App() {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        const response = await fetch('/api/health');
+        const response = await apiFetch('/api/health');
         if (!response.ok) throw new Error('health check gagal');
         const data = await response.json();
         setBackendStatus({
@@ -48,6 +66,10 @@ function App() {
 
   const handleUpload = (file) => {
     setPdfFile(file);
+    resetViewerState();
+  };
+
+  const resetViewerState = () => {
     setActiveTool(null);
     setDrawings([]); // Reset coretan saat upload file baru
     setTexts([]);
@@ -131,7 +153,7 @@ function App() {
     return { blob, fileName: newFileName };
   };
 
-  const handleCompressPdf = async (level = 'medium', fileToCompress = pdfFile, customMessage) => {
+  const handleCompressPdf = async (level = 'balanced', fileToCompress = pdfFile, customMessage) => {
     if (!fileToCompress) {
       alert('Silakan upload PDF terlebih dahulu.');
       return;
@@ -145,7 +167,7 @@ function App() {
       formData.append('pdf', fileToCompress);
       formData.append('level', level);
 
-      const response = await fetch('/api/compress', {
+      const response = await apiFetch('/api/compress', {
         method: 'POST',
         body: formData,
       });
@@ -169,16 +191,21 @@ function App() {
       const compressedSize = Number(response.headers.get('x-compressed-size') || compressedBlob.size || 0);
       const savedPercent = Number(response.headers.get('x-saved-percent') || 0);
       const method = response.headers.get('x-compression-method') || 'unknown';
+      const appliedLevel = response.headers.get('x-compression-level') || level;
+      const strategy = response.headers.get('x-compression-strategy') || 'single-pass';
 
       setLastCompression({
         originalSize,
         compressedSize,
         savedPercent,
         method,
+        appliedLevel,
+        strategy,
       });
 
       downloadPdfBlob(compressedBlob, compressedName);
-      setPdfFile(new File([compressedBlob], compressedName, { type: 'application/pdf' }));
+      // Keep workspace view consistent with initial upload state after compression.
+      resetViewerState();
       const defaultMessage = [
         'PDF berhasil dikompres.',
         `Ukuran: ${formatBytes(originalSize)} -> ${formatBytes(compressedSize)} (${savedPercent.toFixed(2)}%)`,

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, backendStatus, lastCompression, isCompressing, isMobileOpen, onCloseMobile }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
+  const isGhostscriptUnavailable = backendStatus?.checked && !backendStatus?.ghostscriptAvailable;
 
   const formatBytes = (bytes) => {
     if (!Number.isFinite(bytes) || bytes < 0) return '-';
@@ -57,16 +58,33 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
             className="compress-level-select"
             value={compressLevel}
             onChange={(e) => setCompressLevel?.(e.target.value)}
-            disabled={isCompressing}
+            disabled={isCompressing || isGhostscriptUnavailable}
+            title={isGhostscriptUnavailable ? 'Level dinonaktifkan karena backend sedang fallback ke pdf-lib.' : ''}
           >
+            <option value="fast">🟡 Fast (Cepat, kompresi ringan)</option>
             <option value="lossless">🔵 Lossless (Kualitas Sempurna)</option>
             <option value="balanced">🟢 Balanced (Kualitas-Ukuran Seimbang)</option>
             <option value="aggressive">🔴 Aggressive (Ukuran Minimal)</option>
           </select>
+          {backendStatus?.checked && (
+            <p className={`compress-backend-status ${isGhostscriptUnavailable ? 'warning' : 'ok'}`}>
+              {backendStatus.ghostscriptAvailable
+                ? 'Mesin kompresi: Ghostscript aktif'
+                : 'Mesin kompresi: fallback pdf-lib (hasil antar level bisa mirip)'}
+            </p>
+          )}
+          {isGhostscriptUnavailable && (
+            <div className="compress-warning-badge" role="status">
+              Profil level dinonaktifkan sampai Ghostscript aktif kembali.
+            </div>
+          )}
           {lastCompression && (
             <div className="compress-result-box">
               <p>{`Terakhir: ${formatBytes(lastCompression.originalSize)} -> ${formatBytes(lastCompression.compressedSize)}`}</p>
               <p>{`Hemat: ${lastCompression.savedPercent.toFixed(2)}%`}</p>
+              <p>{`Level: ${lastCompression.appliedLevel}`}</p>
+              <p>{`Strategi: ${lastCompression.strategy}`}</p>
+              <p>{`Metode: ${lastCompression.method}`}</p>
             </div>
           )}
         </div>
