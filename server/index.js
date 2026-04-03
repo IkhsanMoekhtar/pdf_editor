@@ -82,28 +82,28 @@ function getCompressionSettings(level) {
       imageResolution: 96,
       downsampling: true,
       pdfPreset: '/screen',
-      colorStrategy: '/sRGB'
+      colorStrategy: 'sRGB'
     },
     lossless: {
       name: 'Lossless',
       imageResolution: 300,
       downsampling: false,
       pdfPreset: '/prepress',
-      colorStrategy: '/Leave'
+      colorStrategy: 'LeaveColorUnchanged'
     },
     balanced: {
       name: 'Balanced',
       imageResolution: 120,
       downsampling: true,
       pdfPreset: '/ebook',
-      colorStrategy: '/sRGB'
+      colorStrategy: 'sRGB'
     },
     aggressive: {
       name: 'Aggressive',
       imageResolution: 96,
       downsampling: true,
       pdfPreset: '/screen',
-      colorStrategy: '/sRGB'
+      colorStrategy: 'sRGB'
     }
   };
   
@@ -135,7 +135,7 @@ function buildGhostscriptArgs(settings, inputPath, outputPath) {
     args.push('-dMonoImageResolution=' + settings.imageResolution);
   }
 
-  args.push(`-dColorConversionStrategy=${settings.colorStrategy}`);
+  args.push(`-sColorConversionStrategy=${settings.colorStrategy}`);
 
   args.push('-dAutoRotatePages=/None');
   args.push(`-sOutputFile=${outputPath}`);
@@ -262,9 +262,18 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
     let method = 'pdf-lib-fallback';
 
     if (gsCommand) {
-      await runGhostscript(inputPath, outputPath, level, gsCommand);
-      outputBuffer = await fs.readFile(outputPath);
-      method = `ghostscript:${gsCommand}`;
+      try {
+        await runGhostscript(inputPath, outputPath, level, gsCommand);
+        outputBuffer = await fs.readFile(outputPath);
+        method = `ghostscript:${gsCommand}`;
+      } catch (gsError) {
+        // Keep API reliable when Ghostscript rejects specific PDFs/options.
+        console.warn('Ghostscript gagal, fallback ke pdf-lib:', gsError?.message || gsError);
+        const inputBuffer = await fs.readFile(inputPath);
+        const pdfBytes = await fallbackCompressWithPdfLib(inputBuffer);
+        outputBuffer = Buffer.from(pdfBytes);
+        method = 'pdf-lib-fallback-after-gs-failed';
+      }
     } else {
       // Fallback tetap fungsional jika Ghostscript belum terpasang.
       const inputBuffer = await fs.readFile(inputPath);
