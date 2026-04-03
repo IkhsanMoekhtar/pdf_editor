@@ -82,28 +82,32 @@ function getCompressionSettings(level) {
       imageResolution: 96,
       downsampling: true,
       pdfPreset: '/screen',
-      colorStrategy: 'RGB'
+      colorStrategy: 'RGB',
+      jpegQuality: 45,
     },
     lossless: {
       name: 'Lossless',
       imageResolution: 300,
       downsampling: false,
       pdfPreset: '/prepress',
-      colorStrategy: 'LeaveColorUnchanged'
+      colorStrategy: 'LeaveColorUnchanged',
+      jpegQuality: null,
     },
     balanced: {
       name: 'Balanced',
-      imageResolution: 120,
+      imageResolution: 150,
       downsampling: true,
       pdfPreset: '/ebook',
-      colorStrategy: 'RGB'
+      colorStrategy: 'RGB',
+      jpegQuality: 65,
     },
     aggressive: {
       name: 'Aggressive',
-      imageResolution: 96,
+      imageResolution: 72,
       downsampling: true,
       pdfPreset: '/screen',
-      colorStrategy: 'RGB'
+      colorStrategy: 'RGB',
+      jpegQuality: 35,
     }
   };
   
@@ -130,9 +134,20 @@ function buildGhostscriptArgs(settings, inputPath, outputPath) {
     args.push('-dDownsampleColorImages=true');
     args.push('-dDownsampleGrayImages=true');
     args.push('-dDownsampleMonoImages=true');
+    args.push('-dColorImageDownsampleType=/Bicubic');
+    args.push('-dGrayImageDownsampleType=/Bicubic');
+    args.push('-dMonoImageDownsampleType=/Subsample');
     args.push('-dColorImageResolution=' + settings.imageResolution);
     args.push('-dGrayImageResolution=' + settings.imageResolution);
     args.push('-dMonoImageResolution=' + settings.imageResolution);
+
+    if (Number.isFinite(settings.jpegQuality)) {
+      args.push('-dAutoFilterColorImages=false');
+      args.push('-dAutoFilterGrayImages=false');
+      args.push('-dColorImageFilter=/DCTEncode');
+      args.push('-dGrayImageFilter=/DCTEncode');
+      args.push('-dJPEGQ=' + settings.jpegQuality);
+    }
   }
 
   args.push(`-sColorConversionStrategy=${settings.colorStrategy}`);
