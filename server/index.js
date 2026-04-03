@@ -269,6 +269,8 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
   const inputPath = req.file.path;
   const outputPath = `${inputPath}.compressed.pdf`;
   const startedAt = Date.now();
+  const originalBuffer = await fs.readFile(inputPath);
+  const originalSize = originalBuffer.length;
 
   try {
     const gsCommand = await getGhostscriptCommand();
@@ -296,8 +298,14 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
       outputBuffer = Buffer.from(pdfBytes);
     }
 
-    const originalSize = req.file.size;
-    const compressedSize = outputBuffer.length;
+    let compressedSize = outputBuffer.length;
+    if (compressedSize >= originalSize) {
+      // Avoid returning a bigger file when "compressed" output is not beneficial.
+      outputBuffer = originalBuffer;
+      compressedSize = originalSize;
+      method = `${method}-kept-original`;
+    }
+
     const savedBytes = Math.max(originalSize - compressedSize, 0);
     const savedPercent = originalSize > 0 ? ((savedBytes / originalSize) * 100).toFixed(2) : '0.00';
 
