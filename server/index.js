@@ -275,36 +275,56 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
   try {
     const gsCommand = await getGhostscriptCommand();
 
-    let outputBuffer;
-    let method = 'pdf-lib-fallback';
+    let ghostscriptBuffer = null;
+    let pdfLibBuffer = null;
+    let method = 'original';
 
     if (gsCommand) {
       try {
         await runGhostscript(inputPath, outputPath, level, gsCommand);
-        outputBuffer = await fs.readFile(outputPath);
-        method = `ghostscript:${gsCommand}`;
+        ghostscriptBuffer = await fs.readFile(outputPath);
       } catch (gsError) {
         // Keep API reliable when Ghostscript rejects specific PDFs/options.
         console.warn('Ghostscript gagal, fallback ke pdf-lib:', gsError?.message || gsError);
-        const inputBuffer = await fs.readFile(inputPath);
-        const pdfBytes = await fallbackCompressWithPdfLib(inputBuffer);
-        outputBuffer = Buffer.from(pdfBytes);
-        method = 'pdf-lib-fallback-after-gs-failed';
       }
-    } else {
-      // Fallback tetap fungsional jika Ghostscript belum terpasang.
-      const inputBuffer = await fs.readFile(inputPath);
-      const pdfBytes = await fallbackCompressWithPdfLib(inputBuffer);
-      outputBuffer = Buffer.from(pdfBytes);
     }
 
-    let compressedSize = outputBuffer.length;
-    if (compressedSize >= originalSize) {
-      // Avoid returning a bigger file when "compressed" output is not beneficial.
-      outputBuffer = originalBuffer;
-      compressedSize = originalSize;
-      method = `${method}-kept-original`;
+    // Always attempt pdf-lib candidate as a secondary strategy.
+    try {
+      const pdfBytes = await fallbackCompressWithPdfLib(originalBuffer);
+      pdfLibBuffer = Buffer.from(pdfBytes);
+    } catch (pdfLibError) {
+      console.warn('pdf-lib fallback gagal:', pdfLibError?.message || pdfLibError);
     }
+
+    const candidates = [
+      { source: 'original', buffer: originalBuffer, method: 'original' },
+    ];
+
+    if (ghostscriptBuffer) {
+      candidates.push({
+        source: 'ghostscript',
+        buffer: ghostscriptBuffer,
+        method: `ghostscript:${gsCommand}`,
+      });
+    }
+
+    if (pdfLibBuffer) {
+      candidates.push({
+        source: 'pdf-lib',
+        buffer: pdfLibBuffer,
+        method: ghostscriptBuffer ? 'pdf-lib-secondary' : 'pdf-lib-fallback',
+      });
+    }
+
+    const bestCandidate = candidates.reduce((best, current) => {
+      return current.buffer.length < best.buffer.length ? current : best;
+    });
+
+    const outputBuffer = bestCandidate.buffer;
+    method = bestCandidate.method;
+
+    let compressedSize = outputBuffer.length;
 
     const savedBytes = Math.max(originalSize - compressedSize, 0);
     const savedPercent = originalSize > 0 ? ((savedBytes / originalSize) * 100).toFixed(2) : '0.00';
@@ -317,6 +337,9 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
     res.setHeader('X-Saved-Bytes', String(savedBytes));
     res.setHeader('X-Saved-Percent', String(savedPercent));
     res.setHeader('X-Compression-Level', level);
+    res.setHeader('X-Compression-Source', bestCandidate.source);
+    res.setHeader('X-Ghostscript-Size', String(ghostscriptBuffer?.length || 0));
+    res.setHeader('X-PdfLib-Size', String(pdfLibBuffer?.length || 0));
     res.setHeader('X-Processing-Time-Ms', String(Date.now() - startedAt));
     res.send(outputBuffer);
   } catch (error) {
