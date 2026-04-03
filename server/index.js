@@ -291,9 +291,11 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
 
   try {
     const gsCommand = await getGhostscriptCommand();
+    const isLossless = level === 'lossless';
 
     let outputBuffer;
     let method = 'pdf-lib-fallback';
+    let strategy = 'single-pass';
 
     if (gsCommand) {
       try {
@@ -313,6 +315,35 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
       outputBuffer = Buffer.from(pdfBytes);
     }
 
+    if (isLossless) {
+      // For lossless, pick the smallest among quality-safe candidates.
+      strategy = 'lossless-smart-min';
+      const candidates = [
+        { buffer: originalBuffer, method: 'original' },
+      ];
+
+      if (outputBuffer) {
+        candidates.push({ buffer: outputBuffer, method });
+      }
+
+      try {
+        const optimizedBytes = await fallbackCompressWithPdfLib(originalBuffer);
+        candidates.push({
+          buffer: Buffer.from(optimizedBytes),
+          method: 'pdf-lib-lossless-optimizer',
+        });
+      } catch (optErr) {
+        console.warn('Optimizer lossless gagal:', optErr?.message || optErr);
+      }
+
+      const best = candidates.reduce((currentBest, item) => {
+        return item.buffer.length < currentBest.buffer.length ? item : currentBest;
+      });
+
+      outputBuffer = best.buffer;
+      method = best.method;
+    }
+
     const compressedSize = outputBuffer.length;
 
     const savedBytes = Math.max(originalSize - compressedSize, 0);
@@ -326,6 +357,7 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
     res.setHeader('X-Saved-Bytes', String(savedBytes));
     res.setHeader('X-Saved-Percent', String(savedPercent));
     res.setHeader('X-Compression-Level', level);
+    res.setHeader('X-Compression-Strategy', strategy);
     res.setHeader('X-Processing-Time-Ms', String(Date.now() - startedAt));
     res.send(outputBuffer);
   } catch (error) {
