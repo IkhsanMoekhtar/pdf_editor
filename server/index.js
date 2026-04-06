@@ -71,6 +71,17 @@ const upload = multer({
   },
 });
 
+const SUPPORTED_COMPRESSION_LEVELS = new Set(['fast', 'lossless', 'balanced', 'aggressive']);
+
+function normalizeCompressionLevel(level) {
+  if (typeof level !== 'string') {
+    return 'balanced';
+  }
+
+  const normalizedLevel = level.trim().toLowerCase();
+  return SUPPORTED_COMPRESSION_LEVELS.has(normalizedLevel) ? normalizedLevel : 'balanced';
+}
+
 let cachedGhostscriptCommand;
 let ghostscriptLookupPromise = null;
 
@@ -82,28 +93,35 @@ function getCompressionSettings(level) {
       imageResolution: 96,
       downsampling: true,
       pdfPreset: '/screen',
-      colorStrategy: 'sRGB'
+      colorStrategy: 'RGB',
+      jpegQuality: 45,
     },
     lossless: {
       name: 'Lossless',
       imageResolution: 300,
       downsampling: false,
-      pdfPreset: '/prepress',
-      colorStrategy: 'LeaveColorUnchanged'
+      pdfPreset: null,
+      compatibilityLevel: '1.7',
+      colorStrategy: 'LeaveColorUnchanged',
+      jpegQuality: null,
+      preserveFonts: true,
+      passThroughImages: true,
     },
     balanced: {
       name: 'Balanced',
-      imageResolution: 120,
+      imageResolution: 150,
       downsampling: true,
       pdfPreset: '/ebook',
-      colorStrategy: 'sRGB'
+      colorStrategy: 'RGB',
+      jpegQuality: 65,
     },
     aggressive: {
       name: 'Aggressive',
-      imageResolution: 96,
+      imageResolution: 72,
       downsampling: true,
       pdfPreset: '/screen',
-      colorStrategy: 'sRGB'
+      colorStrategy: 'RGB',
+      jpegQuality: 35,
     }
   };
   
@@ -113,26 +131,51 @@ function getCompressionSettings(level) {
 function buildGhostscriptArgs(settings, inputPath, outputPath) {
   const args = [
     '-sDEVICE=pdfwrite',
-    '-dCompatibilityLevel=1.4',
+    `-dCompatibilityLevel=${settings.compatibilityLevel || '1.4'}`,
     '-dNOPAUSE',
     '-dQUIET',
     '-dBATCH',
-    // Keep args minimal for faster processing.
-    `-dPDFSETTINGS=${settings.pdfPreset}`,
-    '-dCompressFonts=true',
     '-r' + settings.imageResolution + 'x' + settings.imageResolution,
-    '-dEmbedAllFonts=false',
-    '-dSubsetFonts=true',
   ];
+
+  if (settings.pdfPreset) {
+    args.push(`-dPDFSETTINGS=${settings.pdfPreset}`);
+  }
+
+  if (settings.preserveFonts) {
+    args.push('-dCompressFonts=false');
+    args.push('-dEmbedAllFonts=true');
+    args.push('-dSubsetFonts=false');
+  } else {
+    args.push('-dCompressFonts=true');
+    args.push('-dEmbedAllFonts=false');
+    args.push('-dSubsetFonts=true');
+  }
 
   // Add downsampling for non-lossless
   if (settings.downsampling) {
     args.push('-dDownsampleColorImages=true');
     args.push('-dDownsampleGrayImages=true');
     args.push('-dDownsampleMonoImages=true');
+    args.push('-dColorImageDownsampleType=/Bicubic');
+    args.push('-dGrayImageDownsampleType=/Bicubic');
+    args.push('-dMonoImageDownsampleType=/Subsample');
     args.push('-dColorImageResolution=' + settings.imageResolution);
     args.push('-dGrayImageResolution=' + settings.imageResolution);
     args.push('-dMonoImageResolution=' + settings.imageResolution);
+
+    if (Number.isFinite(settings.jpegQuality)) {
+      args.push('-dAutoFilterColorImages=false');
+      args.push('-dAutoFilterGrayImages=false');
+      args.push('-dColorImageFilter=/DCTEncode');
+      args.push('-dGrayImageFilter=/DCTEncode');
+      args.push('-dJPEGQ=' + settings.jpegQuality);
+    }
+  }
+
+  if (settings.passThroughImages) {
+    args.push('-dPassThroughJPEGImages=true');
+    args.push('-dPassThroughJPXImages=true');
   }
 
   args.push(`-sColorConversionStrategy=${settings.colorStrategy}`);
@@ -250,16 +293,20 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
     return;
   }
 
-  const level = req.body.level || 'balanced';
+  const level = normalizeCompressionLevel(req.body.level);
   const inputPath = req.file.path;
   const outputPath = `${inputPath}.compressed.pdf`;
   const startedAt = Date.now();
+  const originalBuffer = await fs.readFile(inputPath);
+  const originalSize = originalBuffer.length;
 
   try {
     const gsCommand = await getGhostscriptCommand();
+    const isLossless = level === 'lossless';
 
     let outputBuffer;
     let method = 'pdf-lib-fallback';
+    let strategy = 'single-pass';
 
     if (gsCommand) {
       try {
@@ -269,20 +316,47 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
       } catch (gsError) {
         // Keep API reliable when Ghostscript rejects specific PDFs/options.
         console.warn('Ghostscript gagal, fallback ke pdf-lib:', gsError?.message || gsError);
-        const inputBuffer = await fs.readFile(inputPath);
-        const pdfBytes = await fallbackCompressWithPdfLib(inputBuffer);
+        const pdfBytes = await fallbackCompressWithPdfLib(originalBuffer);
         outputBuffer = Buffer.from(pdfBytes);
         method = 'pdf-lib-fallback-after-gs-failed';
       }
     } else {
       // Fallback tetap fungsional jika Ghostscript belum terpasang.
-      const inputBuffer = await fs.readFile(inputPath);
-      const pdfBytes = await fallbackCompressWithPdfLib(inputBuffer);
+      const pdfBytes = await fallbackCompressWithPdfLib(originalBuffer);
       outputBuffer = Buffer.from(pdfBytes);
     }
 
-    const originalSize = req.file.size;
+    if (isLossless) {
+      // For lossless, pick the smallest among quality-safe candidates.
+      strategy = 'lossless-smart-min';
+      const candidates = [
+        { buffer: originalBuffer, method: 'original' },
+      ];
+
+      if (outputBuffer) {
+        candidates.push({ buffer: outputBuffer, method });
+      }
+
+      try {
+        const optimizedBytes = await fallbackCompressWithPdfLib(originalBuffer);
+        candidates.push({
+          buffer: Buffer.from(optimizedBytes),
+          method: 'pdf-lib-lossless-optimizer',
+        });
+      } catch (optErr) {
+        console.warn('Optimizer lossless gagal:', optErr?.message || optErr);
+      }
+
+      const best = candidates.reduce((currentBest, item) => {
+        return item.buffer.length < currentBest.buffer.length ? item : currentBest;
+      });
+
+      outputBuffer = best.buffer;
+      method = best.method;
+    }
+
     const compressedSize = outputBuffer.length;
+
     const savedBytes = Math.max(originalSize - compressedSize, 0);
     const savedPercent = originalSize > 0 ? ((savedBytes / originalSize) * 100).toFixed(2) : '0.00';
 
@@ -294,6 +368,7 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
     res.setHeader('X-Saved-Bytes', String(savedBytes));
     res.setHeader('X-Saved-Percent', String(savedPercent));
     res.setHeader('X-Compression-Level', level);
+    res.setHeader('X-Compression-Strategy', strategy);
     res.setHeader('X-Processing-Time-Ms', String(Date.now() - startedAt));
     res.send(outputBuffer);
   } catch (error) {

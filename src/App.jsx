@@ -8,6 +8,17 @@ import './App.css';
 const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
 const normalizedApiBaseUrl = rawApiBaseUrl.replace(/\/$/, '');
 const hfToken = (import.meta.env.VITE_HF_TOKEN || '').trim();
+const supportedCompressionLevels = new Set(['fast', 'lossless', 'balanced', 'aggressive']);
+
+const normalizeCompressionLevel = (level) => {
+  if (typeof level !== 'string') {
+    return 'balanced';
+  }
+
+  const normalizedLevel = level.trim().toLowerCase();
+  return supportedCompressionLevels.has(normalizedLevel) ? normalizedLevel : 'balanced';
+};
+
 const apiUrl = (path) => (normalizedApiBaseUrl ? `${normalizedApiBaseUrl}${path}` : path);
 const shouldAttachHfToken = normalizedApiBaseUrl.includes('.hf.space') && hfToken;
 
@@ -163,9 +174,10 @@ function App() {
     setIsCompressing(true);
 
     try {
+      const safeLevel = normalizeCompressionLevel(level);
       const formData = new FormData();
       formData.append('pdf', fileToCompress);
-      formData.append('level', level);
+      formData.append('level', safeLevel);
 
       const response = await apiFetch('/api/compress', {
         method: 'POST',
@@ -191,7 +203,7 @@ function App() {
       const compressedSize = Number(response.headers.get('x-compressed-size') || compressedBlob.size || 0);
       const savedPercent = Number(response.headers.get('x-saved-percent') || 0);
       const method = response.headers.get('x-compression-method') || 'unknown';
-      const appliedLevel = response.headers.get('x-compression-level') || level;
+      const appliedLevel = normalizeCompressionLevel(response.headers.get('x-compression-level') || safeLevel);
       const strategy = response.headers.get('x-compression-strategy') || 'single-pass';
 
       setLastCompression({

@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
 
+const compressionLevelOptions = [
+  { value: 'fast', label: '🟡 Fast (Cepat, kompresi ringan)' },
+  { value: 'lossless', label: '🔵 Lossless (Kualitas Sempurna)' },
+  { value: 'balanced', label: '🟢 Balanced (Kualitas-Ukuran Seimbang)' },
+  { value: 'aggressive', label: '🔴 Aggressive (Ukuran Minimal)' },
+];
+
 export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, backendStatus, lastCompression, isCompressing, isMobileOpen, onCloseMobile }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
   const isGhostscriptUnavailable = backendStatus?.checked && !backendStatus?.ghostscriptAvailable;
@@ -61,10 +68,9 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
             disabled={isCompressing || isGhostscriptUnavailable}
             title={isGhostscriptUnavailable ? 'Level dinonaktifkan karena backend sedang fallback ke pdf-lib.' : ''}
           >
-            <option value="fast">🟡 Fast (Cepat, kompresi ringan)</option>
-            <option value="lossless">🔵 Lossless (Kualitas Sempurna)</option>
-            <option value="balanced">🟢 Balanced (Kualitas-Ukuran Seimbang)</option>
-            <option value="aggressive">🔴 Aggressive (Ukuran Minimal)</option>
+            {compressionLevelOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
           {backendStatus?.checked && (
             <p className={`compress-backend-status ${isGhostscriptUnavailable ? 'warning' : 'ok'}`}>
