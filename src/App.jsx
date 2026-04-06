@@ -201,7 +201,8 @@ function App() {
 
       const originalSize = Number(response.headers.get('x-original-size') || fileToCompress.size || 0);
       const compressedSize = Number(response.headers.get('x-compressed-size') || compressedBlob.size || 0);
-      const headerSavedPercent = Number(response.headers.get('x-saved-percent'));
+      const rawSavedPercentHeader = response.headers.get('x-saved-percent');
+      const headerSavedPercent = rawSavedPercentHeader !== null ? Number(rawSavedPercentHeader) : Number.NaN;
       const computedSavedPercent = originalSize > 0 ? ((originalSize - compressedSize) / originalSize) * 100 : 0;
       const savedPercent = Number.isFinite(headerSavedPercent) ? headerSavedPercent : computedSavedPercent;
       const method = response.headers.get('x-compression-method') || 'unknown';
