@@ -75,15 +75,18 @@ let cachedGhostscriptCommand;
 let ghostscriptLookupPromise = null;
 
 function getCompressionSettings(level) {
-  // Speed-first Ghostscript profiles.
+  // Visual-first profiles: keep output close to input while shrinking size aggressively.
   const settings = {
     fast: {
       name: 'Fast',
-      imageResolution: 96,
+      imageResolution: 132,
       downsampling: true,
-      pdfPreset: '/screen',
+      pdfPreset: '/ebook',
       colorStrategy: 'RGB',
-      jpegQuality: 45,
+      jpegQuality: 62,
+      adaptiveImageFiltering: true,
+      downsampleThreshold: 1.45,
+      passThroughImages: true,
     },
     lossless: {
       name: 'Lossless',
@@ -95,22 +98,29 @@ function getCompressionSettings(level) {
       jpegQuality: null,
       preserveFonts: true,
       passThroughImages: true,
+      adaptiveImageFiltering: true,
     },
     balanced: {
       name: 'Balanced',
-      imageResolution: 150,
+      imageResolution: 170,
       downsampling: true,
       pdfPreset: '/ebook',
       colorStrategy: 'RGB',
-      jpegQuality: 65,
+      jpegQuality: 76,
+      adaptiveImageFiltering: true,
+      downsampleThreshold: 1.5,
+      passThroughImages: true,
     },
     aggressive: {
       name: 'Aggressive',
-      imageResolution: 72,
+      imageResolution: 112,
       downsampling: true,
       pdfPreset: '/screen',
       colorStrategy: 'RGB',
-      jpegQuality: 35,
+      jpegQuality: 52,
+      adaptiveImageFiltering: true,
+      downsampleThreshold: 1.35,
+      passThroughImages: true,
     }
   };
   
@@ -125,6 +135,11 @@ function buildGhostscriptArgs(settings, inputPath, outputPath) {
     '-dQUIET',
     '-dBATCH',
     '-r' + settings.imageResolution + 'x' + settings.imageResolution,
+    '-dDetectDuplicateImages=true',
+    '-dCompressPages=true',
+    '-dEncodeColorImages=true',
+    '-dEncodeGrayImages=true',
+    '-dEncodeMonoImages=true',
   ];
 
   if (settings.pdfPreset) {
@@ -152,12 +167,22 @@ function buildGhostscriptArgs(settings, inputPath, outputPath) {
     args.push('-dColorImageResolution=' + settings.imageResolution);
     args.push('-dGrayImageResolution=' + settings.imageResolution);
     args.push('-dMonoImageResolution=' + settings.imageResolution);
+    args.push('-dColorImageDownsampleThreshold=' + (settings.downsampleThreshold || 1.5));
+    args.push('-dGrayImageDownsampleThreshold=' + (settings.downsampleThreshold || 1.5));
+    args.push('-dMonoImageDownsampleThreshold=' + (settings.downsampleThreshold || 1.5));
+
+    if (settings.adaptiveImageFiltering) {
+      args.push('-dAutoFilterColorImages=true');
+      args.push('-dAutoFilterGrayImages=true');
+    }
 
     if (Number.isFinite(settings.jpegQuality)) {
-      args.push('-dAutoFilterColorImages=false');
-      args.push('-dAutoFilterGrayImages=false');
-      args.push('-dColorImageFilter=/DCTEncode');
-      args.push('-dGrayImageFilter=/DCTEncode');
+      if (!settings.adaptiveImageFiltering) {
+        args.push('-dAutoFilterColorImages=false');
+        args.push('-dAutoFilterGrayImages=false');
+        args.push('-dColorImageFilter=/DCTEncode');
+        args.push('-dGrayImageFilter=/DCTEncode');
+      }
       args.push('-dJPEGQ=' + settings.jpegQuality);
     }
   }
@@ -342,6 +367,12 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
 
       outputBuffer = best.buffer;
       method = best.method;
+    }
+
+    if (outputBuffer.length > originalSize) {
+      outputBuffer = originalBuffer;
+      method = 'original-size-guard';
+      strategy = `${strategy}+no-growth`;
     }
 
     const compressedSize = outputBuffer.length;
