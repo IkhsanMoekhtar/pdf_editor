@@ -10,6 +10,7 @@ const compressionLevelOptions = [
 export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, backendStatus, lastCompression, isCompressing, isMobileOpen, onCloseMobile }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
   const isGhostscriptUnavailable = backendStatus?.checked && !backendStatus?.ghostscriptAvailable;
+  const savedPercentLabel = lastCompression?.savedPercent >= 0 ? 'Hemat' : 'Ukuran bertambah';
 
   const formatBytes = (bytes) => {
     if (!Number.isFinite(bytes) || bytes < 0) return '-';
@@ -87,7 +88,7 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
           {lastCompression && (
             <div className="compress-result-box">
               <p>{`Terakhir: ${formatBytes(lastCompression.originalSize)} -> ${formatBytes(lastCompression.compressedSize)}`}</p>
-              <p>{`Hemat: ${lastCompression.savedPercent.toFixed(2)}%`}</p>
+              <p>{`${savedPercentLabel}: ${Math.abs(lastCompression.savedPercent).toFixed(2)}%`}</p>
               <p>{`Level: ${lastCompression.appliedLevel}`}</p>
               <p>{`Strategi: ${lastCompression.strategy}`}</p>
               <p>{`Metode: ${lastCompression.method}`}</p>

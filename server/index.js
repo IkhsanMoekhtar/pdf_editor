@@ -357,7 +357,7 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
 
     const compressedSize = outputBuffer.length;
 
-    const savedBytes = Math.max(originalSize - compressedSize, 0);
+    const savedBytes = originalSize - compressedSize;
     const savedPercent = originalSize > 0 ? ((savedBytes / originalSize) * 100).toFixed(2) : '0.00';
 
     res.setHeader('Content-Type', 'application/pdf');

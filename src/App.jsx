@@ -201,10 +201,14 @@ function App() {
 
       const originalSize = Number(response.headers.get('x-original-size') || fileToCompress.size || 0);
       const compressedSize = Number(response.headers.get('x-compressed-size') || compressedBlob.size || 0);
-      const savedPercent = Number(response.headers.get('x-saved-percent') || 0);
+      const headerSavedPercent = Number(response.headers.get('x-saved-percent'));
+      const computedSavedPercent = originalSize > 0 ? ((originalSize - compressedSize) / originalSize) * 100 : 0;
+      const savedPercent = Number.isFinite(headerSavedPercent) ? headerSavedPercent : computedSavedPercent;
       const method = response.headers.get('x-compression-method') || 'unknown';
       const appliedLevel = normalizeCompressionLevel(response.headers.get('x-compression-level') || safeLevel);
       const strategy = response.headers.get('x-compression-strategy') || 'single-pass';
+      const sizeStatusLabel = savedPercent >= 0 ? 'Hemat' : 'Ukuran bertambah';
+      const sizeStatusPercent = Math.abs(savedPercent).toFixed(2);
 
       setLastCompression({
         originalSize,
@@ -220,7 +224,7 @@ function App() {
       resetViewerState();
       const defaultMessage = [
         'PDF berhasil dikompres.',
-        `Ukuran: ${formatBytes(originalSize)} -> ${formatBytes(compressedSize)} (${savedPercent.toFixed(2)}%)`,
+        `Ukuran: ${formatBytes(originalSize)} -> ${formatBytes(compressedSize)} (${sizeStatusLabel}: ${sizeStatusPercent}%)`,
         `Metode: ${method}`,
       ].join('\n');
       alert(customMessage || defaultMessage);
