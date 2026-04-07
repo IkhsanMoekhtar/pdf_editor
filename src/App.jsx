@@ -273,7 +273,7 @@ function App() {
         onSave={savePdfWithDrawings} 
         onCompress={handleCompressPdf}
         canCompress={Boolean(pdfFile)}
-        isCompressHighlighted={Boolean(pdfFile) && !isCompressing && !lastCompression}
+        isCompressHighlighted={Boolean(pdfFile) && !isCompressing}
         compressLevel={compressLevel}
         setCompressLevel={setCompressLevel}
         compressOnSave={compressOnSave}
