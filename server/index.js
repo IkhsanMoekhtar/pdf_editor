@@ -126,15 +126,16 @@ function getCompressionSettings(level) {
     },
     aggressive: {
       name: 'Aggressive',
-      imageResolution: 300,
-      downsampling: false,
-      pdfPreset: null,
-      compatibilityLevel: '1.5',
-      colorStrategy: 'LeaveColorUnchanged',
-      jpegQuality: null,
-      preserveFonts: true,
-      adaptiveImageFiltering: true,
-      passThroughImages: true,
+      imageResolution: 96,
+      downsampling: true,
+      pdfPreset: '/screen',
+      compatibilityLevel: '1.4',
+      colorStrategy: 'RGB',
+      jpegQuality: 38,
+      preserveFonts: false,
+      adaptiveImageFiltering: false,
+      downsampleThreshold: 1.2,
+      passThroughImages: false,
     }
   };
   
