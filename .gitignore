@@ -50,6 +50,7 @@ credentials.*
 coverage
 *.lcov
 .cache
+.tmp-test/
 
 # OS artifacts
 Thumbs.db

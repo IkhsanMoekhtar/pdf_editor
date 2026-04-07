@@ -359,11 +359,9 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
       outputBuffer = Buffer.from(pdfBytes);
     }
 
-    // Pick the smallest among quality-safe candidates for all levels.
-    strategy = 'fidelity-smart-min';
-    const candidates = [
-      { buffer: originalBuffer, method: 'original' },
-    ];
+    // Always return a processed result (Ghostscript or pdf-lib), even for already-compressed PDFs.
+    strategy = 'fidelity-smart-min-processed-only';
+    const candidates = [];
 
     if (outputBuffer) {
       candidates.push({ buffer: outputBuffer, method });
@@ -385,12 +383,6 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
 
     outputBuffer = best.buffer;
     method = best.method;
-
-    if (outputBuffer.length > originalSize) {
-      outputBuffer = originalBuffer;
-      method = 'original-size-guard';
-      strategy = `${strategy}+no-growth`;
-    }
 
     const compressedSize = outputBuffer.length;
 
