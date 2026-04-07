@@ -77,6 +77,7 @@ function App() {
 
   const handleUpload = (file) => {
     setPdfFile(file);
+    setLastCompression(null);
     resetViewerState();
   };
 
@@ -271,6 +272,8 @@ function App() {
         setActiveTool={setActiveTool} 
         onSave={savePdfWithDrawings} 
         onCompress={handleCompressPdf}
+        canCompress={Boolean(pdfFile)}
+        isCompressHighlighted={Boolean(pdfFile) && !isCompressing && !lastCompression}
         compressLevel={compressLevel}
         setCompressLevel={setCompressLevel}
         compressOnSave={compressOnSave}

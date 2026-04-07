@@ -7,7 +7,7 @@ const compressionLevelOptions = [
   { value: 'aggressive', label: '🔴 Aggressive (Ukuran Minimal)' },
 ];
 
-export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, backendStatus, lastCompression, isCompressing, isMobileOpen, onCloseMobile }) {
+export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, canCompress, isCompressHighlighted, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, backendStatus, lastCompression, isCompressing, isMobileOpen, onCloseMobile }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
   const isGhostscriptUnavailable = backendStatus?.checked && !backendStatus?.ghostscriptAvailable;
   const savedPercentLabel = lastCompression?.savedPercent >= 0 ? 'Hemat' : 'Ukuran bertambah';
@@ -50,12 +50,14 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
         <button className="nav-item" onClick={closeIfMobile}>GABUNG PDF</button>
         <button className="nav-item" onClick={closeIfMobile}>PISAH PDF</button>
         <button
-          className="nav-item"
+          className={`nav-item compress-btn ${isCompressHighlighted ? 'compress-btn-ready' : ''}`}
           onClick={() => {
+            if (!canCompress) return;
             onCompress?.(compressLevel);
             closeIfMobile();
           }}
-          disabled={isCompressing}
+          disabled={isCompressing || !canCompress}
+          title={!canCompress ? 'Upload PDF dulu agar bisa dikompres.' : ''}
         >
           {isCompressing ? 'MENGOMPRES...' : 'KOMPRES PDF'}
         </button>
