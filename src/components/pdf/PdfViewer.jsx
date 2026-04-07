@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { 
   ChevronLeft, ChevronRight, 
@@ -33,6 +33,10 @@ export default function PdfViewer({
   const [drawColor, setDrawColor] = useState('#ff0000'); 
   const [drawThickness, setDrawThickness] = useState(3);
   const [redoStack, setRedoStack] = useState([]);
+  const drawingFrameRef = useRef(null);
+  const pendingPointRef = useRef(null);
+  const panFrameRef = useRef(null);
+  const pendingPanRef = useRef(null);
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -79,6 +83,18 @@ export default function PdfViewer({
     return () => container.removeEventListener('wheel', handleWheelZoom);
   }, [isZoomMode, userZoom]);
 
+  useEffect(() => {
+    return () => {
+      if (drawingFrameRef.current) {
+        cancelAnimationFrame(drawingFrameRef.current);
+      }
+
+      if (panFrameRef.current) {
+        cancelAnimationFrame(panFrameRef.current);
+      }
+    };
+  }, []);
+
   const isLandscapeRotation = rotation === 90 || rotation === 270;
   const docWidth = originalPageSize ? (isLandscapeRotation ? originalPageSize.height : originalPageSize.width) : 0;
   const docHeight = originalPageSize ? (isLandscapeRotation ? originalPageSize.width : originalPageSize.height) : 0;
@@ -88,6 +104,8 @@ export default function PdfViewer({
     if (!originalPageSize.width || !originalPageSize.height) return 1;
     return Math.min(containerSize.width / docWidth, containerSize.height / docHeight) - 0.02;
   };
+
+  const baseScale = useMemo(() => calculateBaseScale(), [containerSize, originalPageSize, docWidth, docHeight]);
 
   const onDocumentLoadSuccess = ({ numPages }) => setNumPages(numPages);
   const onPageLoadSuccess = (page) => setOriginalPageSize({ width: page.originalWidth, height: page.originalHeight });
@@ -99,11 +117,35 @@ export default function PdfViewer({
     setScrollStart({ left: scrollContainerRef.current.scrollLeft, top: scrollContainerRef.current.scrollTop });
   };
   const handleMouseMove = (e) => {
-    if (!isDragging) return; e.preventDefault(); 
-    scrollContainerRef.current.scrollLeft = scrollStart.left - (e.pageX - dragStart.x);
-    scrollContainerRef.current.scrollTop = scrollStart.top - (e.pageY - dragStart.y);
+    if (!isDragging) return;
+    e.preventDefault();
+
+    pendingPanRef.current = {
+      left: scrollStart.left - (e.pageX - dragStart.x),
+      top: scrollStart.top - (e.pageY - dragStart.y),
+    };
+
+    if (panFrameRef.current) return;
+
+    panFrameRef.current = requestAnimationFrame(() => {
+      panFrameRef.current = null;
+      const pendingPan = pendingPanRef.current;
+      if (!pendingPan || !scrollContainerRef.current) return;
+
+      scrollContainerRef.current.scrollLeft = pendingPan.left;
+      scrollContainerRef.current.scrollTop = pendingPan.top;
+      pendingPanRef.current = null;
+    });
   };
-  const handleMouseUpOrLeave = () => setIsDragging(false);
+  const handleMouseUpOrLeave = () => {
+    if (panFrameRef.current) {
+      cancelAnimationFrame(panFrameRef.current);
+      panFrameRef.current = null;
+    }
+
+    pendingPanRef.current = null;
+    setIsDragging(false);
+  };
   const rotateRight = () => setRotation(prev => (prev + 90) % 360);
   const rotateLeft = () => setRotation(prev => (prev - 90 + 360) % 360);
 
@@ -142,6 +184,7 @@ export default function PdfViewer({
     if (activeTool !== 'draw') return; 
     e.preventDefault();
     const coords = getLogicalCoords(e);
+    pendingPointRef.current = null;
     setCurrentDrawing([coords]);
   };
 
@@ -149,14 +192,37 @@ export default function PdfViewer({
     if (activeTool !== 'draw' || !currentDrawing) return; 
     e.preventDefault();
     const coords = getLogicalCoords(e);
-    setCurrentDrawing([...currentDrawing, coords]);
+    pendingPointRef.current = coords;
+
+    if (drawingFrameRef.current) return;
+
+    drawingFrameRef.current = requestAnimationFrame(() => {
+      drawingFrameRef.current = null;
+      const nextPoint = pendingPointRef.current;
+      if (!nextPoint) return;
+
+      setCurrentDrawing((prev) => {
+        if (!prev) return prev;
+        return [...prev, nextPoint];
+      });
+      pendingPointRef.current = null;
+    });
   };
 
   const handleDrawEnd = () => {
+    if (drawingFrameRef.current) {
+      cancelAnimationFrame(drawingFrameRef.current);
+      drawingFrameRef.current = null;
+    }
+
+    const pendingPoint = pendingPointRef.current;
+    pendingPointRef.current = null;
+
     if (currentDrawing) { 
+      const finalPath = pendingPoint ? [...currentDrawing, pendingPoint] : currentDrawing;
       setDrawings([
         ...drawings, 
-        { page: pageNumber, path: currentDrawing, color: drawColor, thickness: drawThickness } // TAMBAH THICKNESS DI SINI
+        { page: pageNumber, path: finalPath, color: drawColor, thickness: drawThickness }
       ]); 
       setCurrentDrawing(null); 
       setRedoStack([]); 
@@ -232,7 +298,11 @@ export default function PdfViewer({
     }
   };
 
-  const currentWidth = (docWidth * calculateBaseScale()) * userZoom;
+  const pageDrawings = useMemo(() => drawings.filter(d => d.page === pageNumber), [drawings, pageNumber]);
+  const pageTexts = useMemo(() => texts.filter(t => t.page === pageNumber), [texts, pageNumber]);
+
+  const renderScale = baseScale * userZoom;
+  const currentWidth = docWidth * renderScale;
 
   return (
     <div className="viewer-container" ref={pdfWrapperRef} style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundImage: 'linear-gradient(135deg, #fafaf9 0%, #e7e5e4 100%)' }}>
@@ -254,7 +324,7 @@ export default function PdfViewer({
           <div className="pdf-paper" style={{ position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', backgroundColor: 'white', display: 'block', margin: currentWidth > containerSize.width ? '0' : '0 auto', width: currentWidth ? `${currentWidth}px` : 'auto' }}>
             
             <Document file={file} onLoadSuccess={onDocumentLoadSuccess} loading={<div style={{ padding: '50px', color: '#6b7280' }}>Memuat dokumen...</div>}>
-              <Page pageNumber={pageNumber} renderTextLayer={false} renderAnnotationLayer={false} onLoadSuccess={onPageLoadSuccess} scale={calculateBaseScale() * 4} rotate={rotation} />
+              <Page pageNumber={pageNumber} renderTextLayer={false} renderAnnotationLayer={false} onLoadSuccess={onPageLoadSuccess} scale={renderScale} rotate={rotation} />
             </Document>
 
             {/* ERROR FIX: Menggunakan originalPageSize.height dan originalPageSize.width */}
@@ -273,7 +343,7 @@ export default function PdfViewer({
                 onPointerUp={handleDrawEnd} 
                 onPointerLeave={handleDrawEnd}
               >
-                {drawings.filter(d => d.page === pageNumber).map((d, idx) => (
+                {pageDrawings.map((d, idx) => (
                   <path 
                     key={idx} 
                     d={makeSvgPath(d.path)} 
@@ -295,7 +365,7 @@ export default function PdfViewer({
                   />
                 )}
 
-                {texts.filter(t => t.page === pageNumber).map(t => (
+                {pageTexts.map(t => (
                   t.isEditing ? (
                     // foreignObject memungkinkan kita menaruh tag HTML (input) ke dalam SVG
                     <foreignObject 
@@ -352,10 +422,10 @@ export default function PdfViewer({
           </div>
         </div>
 
-        <div className="floating-action-bar" style={{ position: 'absolute', bottom: '30px', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)', padding: '12px 24px', borderRadius: '100px', boxShadow: '0 10px 40px rgba(0,0,0,0.12)', display: 'flex', gap: '12px', alignItems: 'center', zIndex: 1000, border: '1px solid rgba(229, 231, 235, 0.8)' }}>
+        <div className="floating-action-bar" style={{ position: 'absolute', bottom: '30px', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(255, 255, 255, 0.95)', padding: '12px 24px', borderRadius: '100px', boxShadow: '0 10px 40px rgba(0,0,0,0.12)', display: 'flex', gap: '12px', alignItems: 'center', zIndex: 1000, border: '1px solid rgba(229, 231, 235, 0.8)' }}>
           
           <p style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280', margin: '0 10px 0 0' }}>
-            {(calculateBaseScale() * userZoom * 100).toFixed(0)}%
+            {(renderScale * 100).toFixed(0)}%
           </p>
           
           <button className={`action-btn ${isZoomMode ? 'active' : ''}`} onClick={() => setIsZoomMode(!isZoomMode)} title="Gunakan Scroll Mouse untuk Zoom" style={{ gap: '6px' }}>

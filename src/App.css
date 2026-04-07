@@ -489,6 +489,11 @@
   border-color: #dc2626;
 }
 
+.floating-action-bar {
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
 .pdf-paper .react-pdf__Page,
 .pdf-paper .react-pdf__Page canvas {
   width: 100% !important;
@@ -497,6 +502,12 @@
 }
 
 @media (max-width: 900px) {
+  .floating-action-bar {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: #ffffff !important;
+  }
+
   .mobile-menu-btn {
     display: inline-flex;
     align-items: center;
@@ -537,5 +548,13 @@
     position: sticky;
     bottom: 0;
     background: #111827;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .floating-action-bar {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: #ffffff !important;
   }
 }

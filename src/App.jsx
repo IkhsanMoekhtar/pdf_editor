@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { PDFDocument, rgb, degrees, StandardFonts} from 'pdf-lib';
 import Sidebar from './components/layout/Sidebar';
 import EmptyState from './components/layout/EmptyState';
-import PdfViewer from './components/pdf/PdfViewer';
 import './App.css';
+
+const PdfViewer = lazy(() => import('./components/pdf/PdfViewer'));
 
 const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
 const normalizedApiBaseUrl = rawApiBaseUrl.replace(/\/$/, '');
@@ -295,17 +296,19 @@ function App() {
 
       <main className="workspace">
         {pdfFile ? (
-          <PdfViewer 
-            file={pdfFile} 
-            activeTool={activeTool} 
-            setActiveTool={setActiveTool}
-            drawings={drawings}
-            setDrawings={setDrawings}
-            rotation={rotation}
-            setRotation={setRotation}
-            texts={texts}
-            setTexts={setTexts}
-          />
+          <Suspense fallback={<div style={{ margin: 'auto', color: '#6b7280' }}>Memuat PDF viewer...</div>}>
+            <PdfViewer 
+              file={pdfFile} 
+              activeTool={activeTool} 
+              setActiveTool={setActiveTool}
+              drawings={drawings}
+              setDrawings={setDrawings}
+              rotation={rotation}
+              setRotation={setRotation}
+              texts={texts}
+              setTexts={setTexts}
+            />
+          </Suspense>
         ) : (
           <EmptyState onUpload={handleUpload} />
         )}
