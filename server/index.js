@@ -71,6 +71,17 @@ const upload = multer({
   },
 });
 
+const SUPPORTED_COMPRESSION_LEVELS = new Set(['fast', 'lossless', 'balanced', 'aggressive']);
+
+function normalizeCompressionLevel(level) {
+  if (typeof level !== 'string') {
+    return 'balanced';
+  }
+
+  const normalizedLevel = level.trim().toLowerCase();
+  return SUPPORTED_COMPRESSION_LEVELS.has(normalizedLevel) ? normalizedLevel : 'balanced';
+}
+
 let cachedGhostscriptCommand;
 let ghostscriptLookupPromise = null;
 
@@ -318,7 +329,7 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
     return;
   }
 
-  const level = req.body.level || 'balanced';
+  const level = normalizeCompressionLevel(req.body.level);
   const inputPath = req.file.path;
   const outputPath = `${inputPath}.compressed.pdf`;
   const startedAt = Date.now();
@@ -376,7 +387,7 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
 
     const compressedSize = outputBuffer.length;
 
-    const savedBytes = Math.max(originalSize - compressedSize, 0);
+    const savedBytes = originalSize - compressedSize;
     const savedPercent = originalSize > 0 ? ((savedBytes / originalSize) * 100).toFixed(2) : '0.00';
 
     res.setHeader('Content-Type', 'application/pdf');
