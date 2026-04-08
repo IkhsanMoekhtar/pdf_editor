@@ -675,6 +675,19 @@
   font-size: 0.72rem;
 }
 
+.page-thumbnail-placeholder {
+  height: 170px;
+  border-radius: 4px;
+  border: 1px dashed #d1d5db;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .viewer-body {
     flex-direction: column;

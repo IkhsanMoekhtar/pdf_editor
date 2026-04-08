@@ -362,6 +362,15 @@ export default function PdfViewer({
   const pageTexts = useMemo(() => texts.filter(t => t.page === pageNumber), [texts, pageNumber]);
   const thumbnailPages = useMemo(() => Array.from({ length: numPages || 0 }, (_, index) => index + 1), [numPages]);
   const thumbnailWidth = thumbSize === 'lg' ? 152 : 126;
+  const thumbnailWindowRadius = 3;
+
+  const shouldRenderThumbnailPage = (page) => {
+    if (!numPages) return false;
+
+    const isNearCurrent = Math.abs(page - pageNumber) <= thumbnailWindowRadius;
+    const isEdgePage = page <= 2 || page > numPages - 2;
+    return isNearCurrent || isEdgePage;
+  };
 
   const renderScale = baseScale * userZoom;
   const currentWidth = docWidth * renderScale;
@@ -520,13 +529,23 @@ export default function PdfViewer({
                       }}
                     >
                       <span className="page-thumbnail-badge">{page}</span>
-                      <Page
-                        pageNumber={page}
-                        width={thumbnailWidth}
-                        renderTextLayer={false}
-                        renderAnnotationLayer={false}
-                        loading={<div className="page-thumbnail-loading">Memuat...</div>}
-                      />
+                      {shouldRenderThumbnailPage(page) ? (
+                        <Page
+                          pageNumber={page}
+                          width={thumbnailWidth}
+                          renderTextLayer={false}
+                          renderAnnotationLayer={false}
+                          loading={<div className="page-thumbnail-loading">Memuat...</div>}
+                        />
+                      ) : (
+                        <div
+                          className="page-thumbnail-placeholder"
+                          style={{ width: `${thumbnailWidth}px` }}
+                          aria-hidden="true"
+                        >
+                          Preview
+                        </div>
+                      )}
                       <span className="page-thumbnail-label">Hal {page}</span>
                     </button>
                   ))}
