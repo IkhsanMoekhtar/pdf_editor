@@ -1,5 +1,4 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
-import { PDFDocument, rgb, degrees, StandardFonts} from 'pdf-lib';
 import Sidebar from './components/layout/Sidebar';
 import EmptyState from './components/layout/EmptyState';
 import './App.css';
@@ -106,6 +105,9 @@ function App() {
 
   const buildEditedPdfBlob = async () => {
     if (!pdfFile) throw new Error('Silakan upload PDF terlebih dahulu.');
+
+    // Load pdf-lib only when user performs save/edit operation.
+    const { PDFDocument, rgb, degrees, StandardFonts } = await import('pdf-lib');
 
     const arrayBuffer = await pdfFile.arrayBuffer();
     const pdfDoc = await PDFDocument.load(arrayBuffer);

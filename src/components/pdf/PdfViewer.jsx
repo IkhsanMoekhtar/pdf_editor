@@ -5,7 +5,6 @@ import {
   ZoomIn, RotateCcw, RotateCw, 
   Type, PenTool, Undo2, Redo2, Palette
 } from 'lucide-react';
-import TextOverlay from './TextOverlay'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -382,26 +381,26 @@ export default function PdfViewer({
   const currentWidth = docWidth * renderScale;
 
   return (
-    <div className="viewer-container" ref={pdfWrapperRef} style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundImage: 'linear-gradient(135deg, #fafaf9 0%, #e7e5e4 100%)' }}>
-      <div className="custom-pdf-viewer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', padding: '20px', position:'relative' }}>
+    <div className="viewer-container viewer-shell" ref={pdfWrapperRef}>
+      <div className="custom-pdf-viewer viewer-layout">
         
-        <div className="pdf-controls" style={{ flexShrink: 0, marginBottom: '15px', display: 'flex', gap: '15px', alignItems: 'center', backgroundColor: 'white', padding: '10px 20px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #f3f4f6' }}>
-          <button onClick={() => changePage(-1)} disabled={pageNumber <= 1} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', cursor: pageNumber <= 1 ? 'not-allowed' : 'pointer', border: '1px solid #e5e7eb', borderRadius: '8px', background: 'white', color: '#4b5563', fontWeight: '500', transition: 'all 0.2s', opacity: pageNumber <= 1 ? 0.5 : 1 }}>
+        <div className="pdf-controls viewer-controls">
+          <button onClick={() => changePage(-1)} disabled={pageNumber <= 1} className="viewer-nav-btn" style={{ opacity: pageNumber <= 1 ? 0.5 : 1 }}>
             <ChevronLeft size={18} /> Prev
           </button>
-          <span style={{ fontWeight: '600', color: '#374151', fontSize: '14px', minWidth: '130px', textAlign: 'center' }}>
+          <span className="viewer-page-indicator">
             Halaman {pageNumber} / {numPages || '--'}
           </span>
-          <button onClick={() => changePage(1)} disabled={pageNumber >= numPages} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', cursor: pageNumber >= numPages ? 'not-allowed' : 'pointer', border: '1px solid #e5e7eb', borderRadius: '8px', background: 'white', color: '#4b5563', fontWeight: '500', transition: 'all 0.2s', opacity: pageNumber >= numPages ? 0.5 : 1 }}>
+          <button onClick={() => changePage(1)} disabled={pageNumber >= numPages} className="viewer-nav-btn" style={{ opacity: pageNumber >= numPages ? 0.5 : 1 }}>
             Next <ChevronRight size={18} />
           </button>
         </div>
 
-        <div className="viewer-body" style={{ width: '100%', display: 'flex', gap: '16px', flex: 1, minHeight: 0 }}>
-          <div className="pdf-paper-wrapper" ref={scrollContainerRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUpOrLeave} onMouseLeave={handleMouseUpOrLeave} style={{ flex: 1, overflow: 'auto', justifyContent: 'center', alignItems: 'flex-start', width: '100%', paddingTop: '10px', paddingBottom: '20px', cursor: getCursorStyle(), userSelect: isDragging ? 'none' : 'auto' }}>
+        <div className="viewer-body viewer-main">
+          <div className="pdf-paper-wrapper pdf-scroll-area" ref={scrollContainerRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUpOrLeave} onMouseLeave={handleMouseUpOrLeave} style={{ cursor: getCursorStyle(), userSelect: isDragging ? 'none' : 'auto' }}>
             <div className="pdf-paper" style={{ position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', backgroundColor: 'white', display: 'block', margin: currentWidth > containerSize.width ? '0' : '0 auto', width: currentWidth ? `${currentWidth}px` : 'auto' }}>
               
-              <Document file={file} onLoadSuccess={onDocumentLoadSuccess} loading={<div style={{ padding: '50px', color: '#6b7280' }}>Memuat dokumen...</div>}>
+              <Document file={file} onLoadSuccess={onDocumentLoadSuccess} loading={<div className="viewer-loading">Memuat dokumen...</div>}>
                 <Page pageNumber={pageNumber} renderTextLayer={false} renderAnnotationLayer={false} onLoadSuccess={onPageLoadSuccess} scale={renderScale} rotate={rotation} />
               </Document>
 
@@ -561,26 +560,25 @@ export default function PdfViewer({
           )}
         </div>
 
-        <div className="floating-action-bar" style={{ position: 'absolute', bottom: '30px', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(255, 255, 255, 0.95)', padding: '12px 24px', borderRadius: '100px', boxShadow: '0 10px 40px rgba(0,0,0,0.12)', display: 'flex', gap: '12px', alignItems: 'center', zIndex: 1000, border: '1px solid rgba(229, 231, 235, 0.8)' }}>
+        <div className="floating-action-bar viewer-action-bar">
           
-          <p style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280', margin: '0 10px 0 0' }}>
+          <p className="viewer-zoom-label">
             {(renderScale * 100).toFixed(0)}%
           </p>
           
-          <button className={`action-btn ${isZoomMode ? 'active' : ''}`} onClick={() => setIsZoomMode(!isZoomMode)} title="Gunakan Scroll Mouse untuk Zoom" style={{ gap: '6px' }}>
-            <ZoomIn size={16} /> <span style={{display: 'none'}}></span>
+          <button className={`action-btn viewer-action-btn ${isZoomMode ? 'active' : ''}`} onClick={() => setIsZoomMode(!isZoomMode)} title="Gunakan Scroll Mouse untuk Zoom">
+            <ZoomIn size={16} />
           </button>
 
           <button
-            className={`action-btn ${isLowPerformanceMode ? 'active' : ''}`}
+            className={`action-btn viewer-action-btn ${isLowPerformanceMode ? 'active' : ''}`}
             onClick={() => setIsLowPerformanceMode((prev) => !prev)}
             title="Toggle mode ringan untuk device spek rendah"
-            style={{ gap: '6px' }}
           >
             {isLowPerformanceMode ? 'Mode Ringan: ON' : 'Mode Ringan: OFF'}
           </button>
           
-          <div style={{ width: '1px', height: '24px', backgroundColor: '#e5e7eb' }}></div>
+          <div className="viewer-divider"></div>
           
           <button className="action-btn" onClick={rotateLeft} title="Putar Kiri">
             <RotateCcw size={16} />
@@ -589,7 +587,7 @@ export default function PdfViewer({
             <RotateCw size={16} />
           </button>
           
-          <div style={{ width: '1px', height: '24px', backgroundColor: '#e5e7eb' }}></div>
+          <div className="viewer-divider"></div>
           
           <button className={`action-btn ${activeTool === 'text' ? 'active' : ''}`} onClick={() => setActiveTool(prev => prev === 'text' ? null : 'text')} style={{ gap: '6px' }}>
             <Type size={16} /> Teks

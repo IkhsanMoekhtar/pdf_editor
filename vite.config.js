@@ -12,6 +12,30 @@ export default defineConfig(({ mode }) => {
       react(),
       babel({ presets: [reactCompilerPreset()] })
     ],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'react-vendor';
+            }
+
+            if (id.includes('node_modules/pdf-lib')) {
+              return 'pdf-edit-vendor';
+            }
+
+            if (
+              id.includes('node_modules/react-pdf') ||
+              id.includes('node_modules/pdfjs-dist')
+            ) {
+              return 'pdf-render-vendor';
+            }
+
+            return undefined;
+          },
+        },
+      },
+    },
     server: {
       proxy: {
         '/api': {

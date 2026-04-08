@@ -354,6 +354,117 @@
   align-items: center;
 }
 
+.viewer-shell {
+  flex-direction: column;
+  overflow: hidden;
+  background-image: linear-gradient(135deg, #fafaf9 0%, #e7e5e4 100%);
+}
+
+.viewer-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  position: relative;
+}
+
+.viewer-controls {
+  flex-shrink: 0;
+  margin-bottom: 15px;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  background-color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f3f4f6;
+}
+
+.viewer-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #4b5563;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.viewer-nav-btn:disabled {
+  cursor: not-allowed;
+}
+
+.viewer-page-indicator {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+  min-width: 130px;
+  text-align: center;
+}
+
+.viewer-main {
+  width: 100%;
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.pdf-scroll-area {
+  flex: 1;
+  overflow: auto;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  padding-top: 10px;
+  padding-bottom: 20px;
+}
+
+.viewer-loading {
+  padding: 50px;
+  color: #6b7280;
+}
+
+.viewer-action-bar {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(255, 255, 255, 0.95);
+  padding: 12px 24px;
+  border-radius: 100px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  z-index: 1000;
+  border: 1px solid rgba(229, 231, 235, 0.8);
+}
+
+.viewer-zoom-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  margin: 0 10px 0 0;
+}
+
+.viewer-action-btn {
+  gap: 6px;
+}
+
+.viewer-divider {
+  width: 1px;
+  height: 24px;
+  background-color: #e5e7eb;
+}
+
 /* --- DESAIN AREA KOSONG (KLIK UNTUK UPLOAD) --- */
 .empty-state.desktop-scene {
   display: flex;
