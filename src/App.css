@@ -501,7 +501,194 @@
   max-width: none !important;
 }
 
+.viewer-body {
+  width: 100%;
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.page-thumbnails {
+  width: 176px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
+  padding: 12px 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-thumbnails-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.page-thumbnails-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #374151;
+  text-align: left;
+}
+
+.thumb-size-switch {
+  display: inline-flex;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #f9fafb;
+}
+
+.thumb-size-btn {
+  border: none;
+  background: transparent;
+  padding: 3px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.thumb-size-btn.active {
+  background: #111827;
+  color: #f9fafb;
+}
+
+.page-thumbnails-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.page-thumbnail-btn {
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.page-thumbnail-btn:hover {
+  transform: translateY(-1px);
+  border-color: #9ca3af;
+  box-shadow: 0 4px 10px rgba(17, 24, 39, 0.12);
+}
+
+.page-thumbnail-btn.active {
+  border-color: #dc2626;
+  background: #fef2f2;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.14);
+}
+
+.page-thumbnail-btn.pulse {
+  animation: thumb-pulse 0.32s ease-out;
+}
+
+.page-thumbnail-btn .react-pdf__Page {
+  pointer-events: none;
+}
+
+.page-thumbnail-btn .react-pdf__Page canvas {
+  width: 100% !important;
+  height: auto !important;
+  border-radius: 4px;
+}
+
+.page-thumbnail-label {
+  font-size: 0.74rem;
+  color: #4b5563;
+  font-weight: 600;
+}
+
+.page-thumbnail-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.82);
+  color: #f9fafb;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.page-thumbnail-btn.active .page-thumbnail-badge {
+  background: #dc2626;
+}
+
+@keyframes thumb-pulse {
+  0% {
+    transform: scale(0.98);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.page-thumbnail-loading {
+  width: 126px;
+  height: 170px;
+  border-radius: 4px;
+  border: 1px dashed #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-size: 0.72rem;
+}
+
 @media (max-width: 900px) {
+  .viewer-body {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .page-thumbnails {
+    width: 100%;
+    min-height: 148px;
+  }
+
+  .page-thumbnails-header {
+    margin-bottom: 8px;
+  }
+
+  .page-thumbnails-list {
+    flex-direction: row;
+    overflow-y: hidden;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  .page-thumbnail-btn {
+    min-width: 138px;
+  }
+
   .floating-action-bar {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;

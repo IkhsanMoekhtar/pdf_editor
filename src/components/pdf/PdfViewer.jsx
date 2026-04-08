@@ -44,6 +44,9 @@ export default function PdfViewer({
 
   const [textColor, setTextColor] = useState('#000000');
   const [textSize, setTextSize] = useState(16);
+  const [thumbSize, setThumbSize] = useState('md');
+  const [recentlyChangedPage, setRecentlyChangedPage] = useState(null);
+  const thumbnailRefs = useRef({});
 
   useEffect(() => {
     setPageNumber(1); 
@@ -94,6 +97,27 @@ export default function PdfViewer({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!numPages || numPages <= 1) return;
+    const activeThumb = thumbnailRefs.current[pageNumber];
+    if (!activeThumb) return;
+
+    setRecentlyChangedPage(pageNumber);
+    activeThumb.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+
+    const timer = window.setTimeout(() => {
+      setRecentlyChangedPage(null);
+    }, 320);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [pageNumber, numPages]);
 
   const isLandscapeRotation = rotation === 90 || rotation === 270;
   const docWidth = originalPageSize ? (isLandscapeRotation ? originalPageSize.height : originalPageSize.width) : 0;
@@ -300,6 +324,8 @@ export default function PdfViewer({
 
   const pageDrawings = useMemo(() => drawings.filter(d => d.page === pageNumber), [drawings, pageNumber]);
   const pageTexts = useMemo(() => texts.filter(t => t.page === pageNumber), [texts, pageNumber]);
+  const thumbnailPages = useMemo(() => Array.from({ length: numPages || 0 }, (_, index) => index + 1), [numPages]);
+  const thumbnailWidth = thumbSize === 'lg' ? 152 : 126;
 
   const renderScale = baseScale * userZoom;
   const currentWidth = docWidth * renderScale;
@@ -320,106 +346,158 @@ export default function PdfViewer({
           </button>
         </div>
 
-        <div className="pdf-paper-wrapper" ref={scrollContainerRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUpOrLeave} onMouseLeave={handleMouseUpOrLeave} style={{ flex: 1, overflow: 'auto', justifyContent: 'center', alignItems: 'flex-start', width: '100%', paddingTop: '10px', paddingBottom: '20px', cursor: getCursorStyle(), userSelect: isDragging ? 'none' : 'auto' }}>
-          <div className="pdf-paper" style={{ position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', backgroundColor: 'white', display: 'block', margin: currentWidth > containerSize.width ? '0' : '0 auto', width: currentWidth ? `${currentWidth}px` : 'auto' }}>
-            
-            <Document file={file} onLoadSuccess={onDocumentLoadSuccess} loading={<div style={{ padding: '50px', color: '#6b7280' }}>Memuat dokumen...</div>}>
-              <Page pageNumber={pageNumber} renderTextLayer={false} renderAnnotationLayer={false} onLoadSuccess={onPageLoadSuccess} scale={renderScale} rotate={rotation} />
-            </Document>
+        <div className="viewer-body" style={{ width: '100%', display: 'flex', gap: '16px', flex: 1, minHeight: 0 }}>
+          <div className="pdf-paper-wrapper" ref={scrollContainerRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUpOrLeave} onMouseLeave={handleMouseUpOrLeave} style={{ flex: 1, overflow: 'auto', justifyContent: 'center', alignItems: 'flex-start', width: '100%', paddingTop: '10px', paddingBottom: '20px', cursor: getCursorStyle(), userSelect: isDragging ? 'none' : 'auto' }}>
+            <div className="pdf-paper" style={{ position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', backgroundColor: 'white', display: 'block', margin: currentWidth > containerSize.width ? '0' : '0 auto', width: currentWidth ? `${currentWidth}px` : 'auto' }}>
+              
+              <Document file={file} onLoadSuccess={onDocumentLoadSuccess} loading={<div style={{ padding: '50px', color: '#6b7280' }}>Memuat dokumen...</div>}>
+                <Page pageNumber={pageNumber} renderTextLayer={false} renderAnnotationLayer={false} onLoadSuccess={onPageLoadSuccess} scale={renderScale} rotate={rotation} />
+              </Document>
 
-            {/* ERROR FIX: Menggunakan originalPageSize.height dan originalPageSize.width */}
-            {originalPageSize && (
-              <svg 
-                style={{ 
-                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
-                    pointerEvents: (activeTool === 'draw' || activeTool === 'text') ? 'auto' : 'none', 
-                    cursor: activeTool === 'draw' ? 'crosshair' : (activeTool === 'text' ? 'text' : 'default'),
-                    transform: `rotate(${rotation}deg)`,
-                    aspectRatio: isLandscapeRotation ? `${originalPageSize.height}/${originalPageSize.width}` : 'auto'
-                }} 
-                viewBox={`0 0 ${originalPageSize.width} ${originalPageSize.height}`} 
-                onPointerDown={handleSvgPointerDown} 
-                onPointerMove={handleDrawMove} 
-                onPointerUp={handleDrawEnd} 
-                onPointerLeave={handleDrawEnd}
-              >
-                {pageDrawings.map((d, idx) => (
-                  <path 
-                    key={idx} 
-                    d={makeSvgPath(d.path)} 
-                    fill="none" 
-                    stroke={d.color || 'red'} 
-                    strokeWidth={d.thickness || 3} // UPDATE INI
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                  />
-                ))}
-                {currentDrawing && (
-                  <path 
-                    d={makeSvgPath(currentDrawing)} 
-                    fill="none" 
-                    stroke={drawColor} 
-                    strokeWidth={drawThickness} // UPDATE INI
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                  />
-                )}
+              {/* ERROR FIX: Menggunakan originalPageSize.height dan originalPageSize.width */}
+              {originalPageSize && (
+                <svg 
+                  style={{ 
+                      position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+                      pointerEvents: (activeTool === 'draw' || activeTool === 'text') ? 'auto' : 'none', 
+                      cursor: activeTool === 'draw' ? 'crosshair' : (activeTool === 'text' ? 'text' : 'default'),
+                      transform: `rotate(${rotation}deg)`,
+                      aspectRatio: isLandscapeRotation ? `${originalPageSize.height}/${originalPageSize.width}` : 'auto'
+                  }} 
+                  viewBox={`0 0 ${originalPageSize.width} ${originalPageSize.height}`} 
+                  onPointerDown={handleSvgPointerDown} 
+                  onPointerMove={handleDrawMove} 
+                  onPointerUp={handleDrawEnd} 
+                  onPointerLeave={handleDrawEnd}
+                >
+                  {pageDrawings.map((d, idx) => (
+                    <path 
+                      key={idx} 
+                      d={makeSvgPath(d.path)} 
+                      fill="none" 
+                      stroke={d.color || 'red'} 
+                      strokeWidth={d.thickness || 3} // UPDATE INI
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                    />
+                  ))}
+                  {currentDrawing && (
+                    <path 
+                      d={makeSvgPath(currentDrawing)} 
+                      fill="none" 
+                      stroke={drawColor} 
+                      strokeWidth={drawThickness} // UPDATE INI
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                    />
+                  )}
 
-                {pageTexts.map(t => (
-                  t.isEditing ? (
-                    // foreignObject memungkinkan kita menaruh tag HTML (input) ke dalam SVG
-                    <foreignObject 
-                      key={t.id} 
-                      x={t.x} 
-                      y={t.y - t.size} // Geser ke atas sedikit agar pas dengan kursor
-                      width="100%" 
-                      height={t.size * 3}
-                    >
-                      <input
-                        autoFocus
-                        type="text"
-                        value={t.text}
-                        onChange={(e) => setTexts(texts.map(txt => txt.id === t.id ? { ...txt, text: e.target.value } : txt))}
-                        onBlur={() => {
-                          if (!t.text.trim()) setTexts(texts.filter(txt => txt.id !== t.id));
-                          else setTexts(texts.map(txt => txt.id === t.id ? { ...txt, isEditing: false } : txt));
+                  {pageTexts.map(t => (
+                    t.isEditing ? (
+                      // foreignObject memungkinkan kita menaruh tag HTML (input) ke dalam SVG
+                      <foreignObject 
+                        key={t.id} 
+                        x={t.x} 
+                        y={t.y - t.size} // Geser ke atas sedikit agar pas dengan kursor
+                        width="100%" 
+                        height={t.size * 3}
+                      >
+                        <input
+                          autoFocus
+                          type="text"
+                          value={t.text}
+                          onChange={(e) => setTexts(texts.map(txt => txt.id === t.id ? { ...txt, text: e.target.value } : txt))}
+                          onBlur={() => {
+                            if (!t.text.trim()) setTexts(texts.filter(txt => txt.id !== t.id));
+                            else setTexts(texts.map(txt => txt.id === t.id ? { ...txt, isEditing: false } : txt));
+                          }}
+                          style={{
+                            fontSize: `${t.size}px`,
+                            color: t.color,
+                            background: 'transparent',
+                            border: '1px dashed #3b82f6',
+                            outline: 'none',
+                            fontFamily: 'Helvetica, Arial, sans-serif',
+                            width: 'max-content',
+                            minWidth: '50px'
+                          }}
+                        />
+                      </foreignObject>
+                    ) : (
+                      // Mode baca (Native SVG Text)
+                      <text
+                        key={t.id}
+                        x={t.x}
+                        y={t.y}
+                        fontSize={t.size}
+                        fill={t.color}
+                        fontFamily="Helvetica, Arial, sans-serif"
+                        onPointerDown={(e) => {
+                          if (activeTool === 'text') {
+                            e.stopPropagation();
+                            setTexts(texts.map(txt => txt.id === t.id ? { ...txt, isEditing: true } : txt));
+                          }
                         }}
-                        style={{
-                          fontSize: `${t.size}px`,
-                          color: t.color,
-                          background: 'transparent',
-                          border: '1px dashed #3b82f6',
-                          outline: 'none',
-                          fontFamily: 'Helvetica, Arial, sans-serif',
-                          width: 'max-content',
-                          minWidth: '50px'
-                        }}
-                      />
-                    </foreignObject>
-                  ) : (
-                    // Mode baca (Native SVG Text)
-                    <text
-                      key={t.id}
-                      x={t.x}
-                      y={t.y}
-                      fontSize={t.size}
-                      fill={t.color}
-                      fontFamily="Helvetica, Arial, sans-serif"
-                      onPointerDown={(e) => {
-                        if (activeTool === 'text') {
-                          e.stopPropagation();
-                          setTexts(texts.map(txt => txt.id === t.id ? { ...txt, isEditing: true } : txt));
-                        }
-                      }}
-                      style={{ cursor: activeTool === 'text' ? 'text' : 'default', userSelect: 'none' }}
-                    >
-                      {t.text}
-                    </text>
-                  )
-                ))}
-              </svg>
-            )}
+                        style={{ cursor: activeTool === 'text' ? 'text' : 'default', userSelect: 'none' }}
+                      >
+                        {t.text}
+                      </text>
+                    )
+                  ))}
+                </svg>
+              )}
+            </div>
           </div>
+
+          {numPages > 1 && (
+            <aside className="page-thumbnails" aria-label="Preview halaman PDF">
+              <div className="page-thumbnails-header">
+                <p className="page-thumbnails-title">Preview Halaman</p>
+                <div className="thumb-size-switch" role="group" aria-label="Ukuran thumbnail">
+                  <button
+                    type="button"
+                    className={`thumb-size-btn ${thumbSize === 'md' ? 'active' : ''}`}
+                    onClick={() => setThumbSize('md')}
+                  >
+                    Kecil
+                  </button>
+                  <button
+                    type="button"
+                    className={`thumb-size-btn ${thumbSize === 'lg' ? 'active' : ''}`}
+                    onClick={() => setThumbSize('lg')}
+                  >
+                    Besar
+                  </button>
+                </div>
+              </div>
+              <Document file={file}>
+                <div className="page-thumbnails-list">
+                  {thumbnailPages.map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      className={`page-thumbnail-btn ${page === pageNumber ? 'active' : ''} ${page === recentlyChangedPage ? 'pulse' : ''}`}
+                      onClick={() => setPageNumber(page)}
+                      aria-label={`Pilih halaman ${page}`}
+                      ref={(el) => {
+                        if (el) thumbnailRefs.current[page] = el;
+                      }}
+                    >
+                      <span className="page-thumbnail-badge">{page}</span>
+                      <Page
+                        pageNumber={page}
+                        width={thumbnailWidth}
+                        renderTextLayer={false}
+                        renderAnnotationLayer={false}
+                        loading={<div className="page-thumbnail-loading">Memuat...</div>}
+                      />
+                      <span className="page-thumbnail-label">Hal {page}</span>
+                    </button>
+                  ))}
+                </div>
+              </Document>
+            </aside>
+          )}
         </div>
 
         <div className="floating-action-bar" style={{ position: 'absolute', bottom: '30px', left: '50%', transform: 'translateX(-50%)', backgroundColor: 'rgba(255, 255, 255, 0.95)', padding: '12px 24px', borderRadius: '100px', boxShadow: '0 10px 40px rgba(0,0,0,0.12)', display: 'flex', gap: '12px', alignItems: 'center', zIndex: 1000, border: '1px solid rgba(229, 231, 235, 0.8)' }}>
