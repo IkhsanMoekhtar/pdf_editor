@@ -45,6 +45,7 @@ export default function PdfViewer({
   const [textColor, setTextColor] = useState('#000000');
   const [textSize, setTextSize] = useState(16);
   const [thumbSize, setThumbSize] = useState('md');
+  const [isLowPerformanceMode, setIsLowPerformanceMode] = useState(false);
   const [recentlyChangedPage, setRecentlyChangedPage] = useState(null);
   const thumbnailRefs = useRef({});
 
@@ -103,12 +104,17 @@ export default function PdfViewer({
     const activeThumb = thumbnailRefs.current[pageNumber];
     if (!activeThumb) return;
 
-    setRecentlyChangedPage(pageNumber);
+    if (!isLowPerformanceMode) {
+      setRecentlyChangedPage(pageNumber);
+    }
+
     activeThumb.scrollIntoView({
-      behavior: 'smooth',
+      behavior: isLowPerformanceMode ? 'auto' : 'smooth',
       block: 'nearest',
       inline: 'center',
     });
+
+    if (isLowPerformanceMode) return;
 
     const timer = window.setTimeout(() => {
       setRecentlyChangedPage(null);
@@ -117,7 +123,7 @@ export default function PdfViewer({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [pageNumber, numPages]);
+  }, [pageNumber, numPages, isLowPerformanceMode]);
 
   const isLandscapeRotation = rotation === 90 || rotation === 270;
   const docWidth = originalPageSize ? (isLandscapeRotation ? originalPageSize.height : originalPageSize.width) : 0;
@@ -362,7 +368,7 @@ export default function PdfViewer({
   const pageTexts = useMemo(() => texts.filter(t => t.page === pageNumber), [texts, pageNumber]);
   const thumbnailPages = useMemo(() => Array.from({ length: numPages || 0 }, (_, index) => index + 1), [numPages]);
   const thumbnailWidth = thumbSize === 'lg' ? 152 : 126;
-  const thumbnailWindowRadius = 3;
+  const thumbnailWindowRadius = isLowPerformanceMode ? 1 : 3;
 
   const shouldRenderThumbnailPage = (page) => {
     if (!numPages) return false;
@@ -521,7 +527,7 @@ export default function PdfViewer({
                     <button
                       key={page}
                       type="button"
-                      className={`page-thumbnail-btn ${page === pageNumber ? 'active' : ''} ${page === recentlyChangedPage ? 'pulse' : ''}`}
+                      className={`page-thumbnail-btn ${page === pageNumber ? 'active' : ''} ${!isLowPerformanceMode && page === recentlyChangedPage ? 'pulse' : ''}`}
                       onClick={() => setPageNumber(page)}
                       aria-label={`Pilih halaman ${page}`}
                       ref={(el) => {
@@ -563,6 +569,15 @@ export default function PdfViewer({
           
           <button className={`action-btn ${isZoomMode ? 'active' : ''}`} onClick={() => setIsZoomMode(!isZoomMode)} title="Gunakan Scroll Mouse untuk Zoom" style={{ gap: '6px' }}>
             <ZoomIn size={16} /> <span style={{display: 'none'}}></span>
+          </button>
+
+          <button
+            className={`action-btn ${isLowPerformanceMode ? 'active' : ''}`}
+            onClick={() => setIsLowPerformanceMode((prev) => !prev)}
+            title="Toggle mode ringan untuk device spek rendah"
+            style={{ gap: '6px' }}
+          >
+            {isLowPerformanceMode ? 'Mode Ringan: ON' : 'Mode Ringan: OFF'}
           </button>
           
           <div style={{ width: '1px', height: '24px', backgroundColor: '#e5e7eb' }}></div>
