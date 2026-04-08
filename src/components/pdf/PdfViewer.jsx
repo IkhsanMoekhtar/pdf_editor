@@ -133,7 +133,43 @@ export default function PdfViewer({
 
   const onDocumentLoadSuccess = ({ numPages }) => setNumPages(numPages);
   const onPageLoadSuccess = (page) => setOriginalPageSize({ width: page.originalWidth, height: page.originalHeight });
-  const changePage = (offset) => setPageNumber(prev => prev + offset);
+  const changePage = (offset) => {
+    if (!numPages) return;
+    setPageNumber((prev) => {
+      const nextPage = prev + offset;
+      return Math.min(Math.max(nextPage, 1), numPages);
+    });
+  };
+
+  useEffect(() => {
+    const isTypingTarget = (target) => {
+      if (!target || !(target instanceof HTMLElement)) return false;
+
+      const tag = target.tagName.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+      return target.isContentEditable;
+    };
+
+    const handleKeyDown = (event) => {
+      if (!numPages || numPages <= 1) return;
+      if (isTypingTarget(event.target)) return;
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        changePage(-1);
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        changePage(1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [numPages]);
 
   const handleMouseDown = (e) => {
     if (activeTool !== null) return; 
