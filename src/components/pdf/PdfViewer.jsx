@@ -46,12 +46,16 @@ export default function PdfViewer({
   const [thumbSize, setThumbSize] = useState('md');
   const [isLowPerformanceMode, setIsLowPerformanceMode] = useState(false);
   const [recentlyChangedPage, setRecentlyChangedPage] = useState(null);
+  const [visibleThumbnailPages, setVisibleThumbnailPages] = useState({});
   const thumbnailRefs = useRef({});
+  const thumbnailObserverRef = useRef(null);
+  const thumbnailListRef = useRef(null);
 
   useEffect(() => {
     setPageNumber(1); 
     setOriginalPageSize(null); 
     setUserZoom(1); 
+    setVisibleThumbnailPages({});
   }, [file]);
 
   useEffect(() => {
@@ -123,6 +127,49 @@ export default function PdfViewer({
       window.clearTimeout(timer);
     };
   }, [pageNumber, numPages, isLowPerformanceMode]);
+
+  useEffect(() => {
+    if (!numPages || numPages <= 1) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setVisibleThumbnailPages((prev) => {
+          let changed = false;
+          const next = { ...prev };
+
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            const rawPage = entry.target.getAttribute('data-page');
+            const page = rawPage ? Number(rawPage) : NaN;
+            if (!Number.isFinite(page)) return;
+
+            if (!next[page]) {
+              next[page] = true;
+              changed = true;
+            }
+          });
+
+          return changed ? next : prev;
+        });
+      },
+      {
+        root: thumbnailListRef.current,
+        rootMargin: '120px 0px',
+        threshold: 0.1,
+      },
+    );
+
+    thumbnailObserverRef.current = observer;
+
+    Object.values(thumbnailRefs.current).forEach((el) => {
+      if (el) observer.observe(el);
+    });
+
+    return () => {
+      observer.disconnect();
+      thumbnailObserverRef.current = null;
+    };
+  }, [numPages]);
 
   const isLandscapeRotation = rotation === 90 || rotation === 270;
   const docWidth = originalPageSize ? (isLandscapeRotation ? originalPageSize.height : originalPageSize.width) : 0;
@@ -369,12 +416,32 @@ export default function PdfViewer({
   const thumbnailWidth = thumbSize === 'lg' ? 152 : 126;
   const thumbnailWindowRadius = isLowPerformanceMode ? 1 : 3;
 
+  const setThumbnailRef = (page, el) => {
+    const existingEl = thumbnailRefs.current[page];
+
+    if (existingEl && thumbnailObserverRef.current) {
+      thumbnailObserverRef.current.unobserve(existingEl);
+    }
+
+    if (!el) {
+      delete thumbnailRefs.current[page];
+      return;
+    }
+
+    thumbnailRefs.current[page] = el;
+
+    if (thumbnailObserverRef.current) {
+      thumbnailObserverRef.current.observe(el);
+    }
+  };
+
   const shouldRenderThumbnailPage = (page) => {
     if (!numPages) return false;
 
+    const isVisible = Boolean(visibleThumbnailPages[page]);
     const isNearCurrent = Math.abs(page - pageNumber) <= thumbnailWindowRadius;
     const isEdgePage = page <= 2 || page > numPages - 2;
-    return isNearCurrent || isEdgePage;
+    return isVisible || isNearCurrent || isEdgePage;
   };
 
   const renderScale = baseScale * userZoom;
@@ -521,17 +588,16 @@ export default function PdfViewer({
                 </div>
               </div>
               <Document file={file}>
-                <div className="page-thumbnails-list">
+                <div className="page-thumbnails-list" ref={thumbnailListRef}>
                   {thumbnailPages.map((page) => (
                     <button
                       key={page}
+                      data-page={page}
                       type="button"
                       className={`page-thumbnail-btn ${page === pageNumber ? 'active' : ''} ${!isLowPerformanceMode && page === recentlyChangedPage ? 'pulse' : ''}`}
                       onClick={() => setPageNumber(page)}
                       aria-label={`Pilih halaman ${page}`}
-                      ref={(el) => {
-                        if (el) thumbnailRefs.current[page] = el;
-                      }}
+                      ref={(el) => setThumbnailRef(page, el)}
                     >
                       <span className="page-thumbnail-badge">{page}</span>
                       {shouldRenderThumbnailPage(page) ? (
