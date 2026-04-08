@@ -42,6 +42,8 @@ function App() {
   const [texts, setTexts] = useState([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isCheckingBackend, setIsCheckingBackend] = useState(true);
   const [compressLevel, setCompressLevel] = useState('balanced');
   const [compressOnSave, setCompressOnSave] = useState(false);
   const [backendStatus, setBackendStatus] = useState({ ghostscriptAvailable: false, checked: false });
@@ -49,6 +51,7 @@ function App() {
 
   useEffect(() => {
     const checkBackend = async () => {
+      setIsCheckingBackend(true);
       try {
         const response = await apiFetch('/api/health');
         if (!response.ok) throw new Error('health check gagal');
@@ -60,6 +63,8 @@ function App() {
         });
       } catch {
         setBackendStatus({ checked: true, ghostscriptAvailable: false, ghostscriptCommand: null });
+      } finally {
+        setIsCheckingBackend(false);
       }
     };
 
@@ -243,6 +248,7 @@ function App() {
 
   const savePdfWithDrawings = async () => {
     if (!pdfFile) return;
+    setIsSaving(true);
 
     try {
       const { blob, fileName } = await buildEditedPdfBlob();
@@ -257,8 +263,19 @@ function App() {
     } catch (error) {
       console.error("Gagal menyimpan PDF:", error);
       alert("Terjadi kesalahan saat menyimpan PDF.");
+    } finally {
+      setIsSaving(false);
     }
   };
+
+  const busyMessage = isCompressing
+    ? 'Sedang mengompres PDF...'
+    : isSaving
+      ? 'Sedang menyiapkan file PDF...'
+      : isCheckingBackend
+        ? 'Sedang memeriksa layanan backend...'
+        : '';
+  const isGlobalBusy = isCompressing || isSaving || isCheckingBackend;
 
   return (
     <div className="app-container">
@@ -284,6 +301,7 @@ function App() {
         backendStatus={backendStatus}
         lastCompression={lastCompression}
         isCompressing={isCompressing}
+        isSaving={isSaving}
         isMobileOpen={isSidebarOpen}
         onCloseMobile={() => setIsSidebarOpen(false)}
       />
@@ -315,6 +333,16 @@ function App() {
           <EmptyState onUpload={handleUpload} />
         )}
       </main>
+
+      {isGlobalBusy && (
+        <div className="global-loading-overlay" role="status" aria-live="polite" aria-busy="true">
+          <div className="global-loading-card">
+            <div className="global-loading-spinner" aria-hidden="true" />
+            <p className="global-loading-title">Mohon Tunggu</p>
+            <p className="global-loading-message">{busyMessage}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

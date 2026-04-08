@@ -7,7 +7,7 @@ const compressionLevelOptions = [
   { value: 'aggressive', label: '🔴 Aggressive (Ukuran Minimal)' },
 ];
 
-export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, canCompress, isCompressHighlighted, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, backendStatus, lastCompression, isCompressing, isMobileOpen, onCloseMobile }) {
+export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, canCompress, isCompressHighlighted, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, backendStatus, lastCompression, isCompressing, isSaving, isMobileOpen, onCloseMobile }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
   const isGhostscriptUnavailable = backendStatus?.checked && !backendStatus?.ghostscriptAvailable;
   const savedPercentLabel = lastCompression?.savedPercent >= 0 ? 'Hemat' : 'Ukuran bertambah';
@@ -56,7 +56,7 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
             onCompress?.(compressLevel);
             closeIfMobile();
           }}
-          disabled={isCompressing || !canCompress}
+          disabled={isCompressing || isSaving || !canCompress}
           title={!canCompress ? 'Upload PDF dulu agar bisa dikompres.' : ''}
         >
           {isCompressing ? 'MENGOMPRES...' : 'KOMPRES PDF'}
@@ -68,7 +68,7 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
             className="compress-level-select"
             value={compressLevel}
             onChange={(e) => setCompressLevel?.(e.target.value)}
-            disabled={isCompressing || isGhostscriptUnavailable}
+            disabled={isCompressing || isSaving || isGhostscriptUnavailable}
             title={isGhostscriptUnavailable ? 'Level dinonaktifkan karena backend sedang fallback ke pdf-lib.' : ''}
           >
             {compressionLevelOptions.map((option) => (
@@ -145,8 +145,8 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
           <span>Kompres saat simpan</span>
         </label>
 
-        <button className="save-btn" disabled={isCompressing} onClick={() => { onSave(); closeIfMobile(); }}>
-          {isCompressing ? '⏳ Memproses...' : compressOnSave ? '💾 Simpan + Kompres' : '💾 Simpan File'}
+        <button className="save-btn" disabled={isCompressing || isSaving} onClick={() => { onSave(); closeIfMobile(); }}>
+          {isCompressing ? '⏳ Mengompres...' : isSaving ? '⏳ Menyimpan...' : compressOnSave ? '💾 Simpan + Kompres' : '💾 Simpan File'}
         </button>
       </div>
     </aside>
