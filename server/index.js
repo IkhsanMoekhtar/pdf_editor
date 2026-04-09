@@ -438,7 +438,7 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
   }
 });
 
-app.use((err, _req, res, _next) => {
+app.use(async (err, req, res, _next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
       res.status(413).json({
@@ -456,8 +456,8 @@ app.use((err, _req, res, _next) => {
     return;
   }
 
-  if (_req?.requestTempDir) {
-    cleanupRequestTemp(_req.requestTempDir);
+  if (req?.requestTempDir) {
+    await cleanupRequestTemp(req.requestTempDir);
   }
 
   console.error('Unhandled server error:', err);
