@@ -7,6 +7,7 @@ import { PDFDocument } from 'pdf-lib';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { promises as fs } from 'node:fs';
 import { spawn } from 'node:child_process';
 import rateLimit from 'express-rate-limit';
@@ -18,10 +19,14 @@ const TRUST_PROXY = process.env.TRUST_PROXY || '1';
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 20);
 const ENABLE_SECOND_PASS_OPTIMIZER = process.env.ENABLE_SECOND_PASS_OPTIMIZER === '1';
+const DASHBOARD_TOKEN = (process.env.DASHBOARD_TOKEN || '').trim();
+const DASHBOARD_RETENTION = Math.max(20, Number(process.env.DASHBOARD_RETENTION || 200));
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+const serverRootDir = path.dirname(fileURLToPath(import.meta.url));
+const dashboardPublicDir = path.join(serverRootDir, 'public');
 
 app.set('trust proxy', TRUST_PROXY);
 app.use(morgan('tiny'));
@@ -42,6 +47,113 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86_400,
 }));
+
+const runtimeMetrics = {
+  startedAt: Date.now(),
+  totals: {
+    compressRequests: 0,
+    success: 0,
+    failed: 0,
+    bytesIn: 0,
+    bytesOut: 0,
+  },
+  activeCompressRequests: 0,
+  recent: [],
+};
+
+function pushRecentMetric(entry) {
+  runtimeMetrics.recent.unshift(entry);
+  if (runtimeMetrics.recent.length > DASHBOARD_RETENTION) {
+    runtimeMetrics.recent.length = DASHBOARD_RETENTION;
+  }
+}
+
+function percentile(values, p) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return sorted[index];
+}
+
+function summarizeMetrics() {
+  const durations = runtimeMetrics.recent
+    .map((item) => Number(item.durationMs || 0))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+
+  const avgLatency = durations.length
+    ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)
+    : 0;
+
+  return {
+    startedAt: runtimeMetrics.startedAt,
+    uptimeMs: Date.now() - runtimeMetrics.startedAt,
+    activeCompressRequests: runtimeMetrics.activeCompressRequests,
+    totals: runtimeMetrics.totals,
+    latencyMs: {
+      avg: avgLatency,
+      p50: percentile(durations, 50),
+      p95: percentile(durations, 95),
+      p99: percentile(durations, 99),
+    },
+  };
+}
+
+function hasDashboardAccess(req) {
+  if (!DASHBOARD_TOKEN) return true;
+
+  const queryToken = typeof req.query?.token === 'string' ? req.query.token : '';
+  const headerToken = req.get('x-dashboard-token') || '';
+  return queryToken === DASHBOARD_TOKEN || headerToken === DASHBOARD_TOKEN;
+}
+
+function requireDashboardAccess(req, res, next) {
+  if (!hasDashboardAccess(req)) {
+    res.status(401).json({ error: 'Akses dashboard tidak diizinkan.' });
+    return;
+  }
+
+  next();
+}
+
+function compressionMetricsMiddleware(req, res, next) {
+  const startedAt = Date.now();
+  runtimeMetrics.activeCompressRequests += 1;
+
+  res.on('finish', () => {
+    runtimeMetrics.activeCompressRequests = Math.max(0, runtimeMetrics.activeCompressRequests - 1);
+    runtimeMetrics.totals.compressRequests += 1;
+
+    const isSuccess = res.statusCode >= 200 && res.statusCode < 400;
+    if (isSuccess) {
+      runtimeMetrics.totals.success += 1;
+    } else {
+      runtimeMetrics.totals.failed += 1;
+    }
+
+    const meta = res.locals?.compressionMeta || {};
+    const inputSize = Number(meta.originalSize || 0);
+    const outputSize = Number(meta.compressedSize || 0);
+
+    if (inputSize > 0) runtimeMetrics.totals.bytesIn += inputSize;
+    if (outputSize > 0) runtimeMetrics.totals.bytesOut += outputSize;
+
+    pushRecentMetric({
+      at: Date.now(),
+      requestId: req.requestId || 'unknown',
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startedAt,
+      level: meta.level || normalizeCompressionLevel(req.body?.level),
+      method: meta.method || 'unknown',
+      strategy: meta.strategy || 'unknown',
+      originalSize: inputSize,
+      compressedSize: outputSize,
+      savedPercent: Number(meta.savedPercent || 0),
+      remoteAddress: req.ip || 'unknown',
+    });
+  });
+
+  next();
+}
 
 const compressRateLimiter = rateLimit({
   windowMs: RATE_LIMIT_WINDOW_MS,
@@ -349,10 +461,38 @@ app.get('/api/health', async (_req, res) => {
     ghostscriptAvailable: Boolean(gsCommand),
     ghostscriptCommand: gsCommand,
     secondPassOptimizerEnabled: ENABLE_SECOND_PASS_OPTIMIZER,
+    dashboardEnabled: true,
+    dashboardProtected: Boolean(DASHBOARD_TOKEN),
   });
 });
 
-app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req, res) => {
+app.get('/dashboard', requireDashboardAccess, (_req, res) => {
+  res.sendFile(path.join(dashboardPublicDir, 'dashboard.html'));
+});
+
+app.get('/dashboard/dashboard.js', (_req, res) => {
+  res.type('application/javascript').sendFile(path.join(dashboardPublicDir, 'dashboard.js'));
+});
+
+app.get('/api/dashboard/metrics', requireDashboardAccess, (req, res) => {
+  const compact = String(req.query.compact || '') === '1';
+  const limitRaw = Number(req.query.limit || 40);
+  const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 40, 1), DASHBOARD_RETENTION);
+  const summary = summarizeMetrics();
+
+  if (compact) {
+    res.json({ summary });
+    return;
+  }
+
+  res.json({
+    summary,
+    recent: runtimeMetrics.recent.slice(0, limit),
+    retention: DASHBOARD_RETENTION,
+  });
+});
+
+app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upload.single('pdf'), async (req, res) => {
   if (!req.file) {
     res.status(400).json({ error: 'File PDF tidak ditemukan.' });
     return;
@@ -428,6 +568,15 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
 
     const savedBytes = originalSize - compressedSize;
     const savedPercent = originalSize > 0 ? ((savedBytes / originalSize) * 100).toFixed(2) : '0.00';
+
+    res.locals.compressionMeta = {
+      level,
+      method,
+      strategy,
+      originalSize,
+      compressedSize,
+      savedPercent,
+    };
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="compressed.pdf"');

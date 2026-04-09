@@ -18,6 +18,12 @@ Gunakan nilai ini sebagai baseline awal:
 - `CORS_ORIGINS=http://localhost:5173,https://<frontend-domain-anda>`
 - `RATE_LIMIT_WINDOW_MS=60000`
 - `RATE_LIMIT_MAX=20`
+- `DASHBOARD_RETENTION=200`
+
+Opsional (disarankan untuk Space publik):
+
+- `DASHBOARD_TOKEN=<token-rahasia-anda>`
+- `ENABLE_SECOND_PASS_OPTIMIZER=0` (default latency-first)
 
 Catatan:
 - `PORT` tidak perlu diisi manual karena `Dockerfile` sudah `ENV PORT=7860`.
@@ -71,6 +77,25 @@ Ekspektasi header response:
 - `X-Compression-Method`
 - `X-Processing-Time-Ms`
 - `X-Saved-Percent`
+
+3. Dashboard check:
+
+```text
+GET https://<HF_USERNAME>-<SPACE_NAME>.hf.space/dashboard
+```
+
+Jika `DASHBOARD_TOKEN` aktif, akses dengan query:
+
+```text
+GET https://<HF_USERNAME>-<SPACE_NAME>.hf.space/dashboard?token=<token-rahasia-anda>
+```
+
+Endpoint data dashboard:
+
+```text
+GET /api/dashboard/metrics
+GET /api/dashboard/metrics?compact=1
+```
 
 ## 5. Hubungkan Frontend ke Backend Space
 

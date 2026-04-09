@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Backend Dashboard - PDF Service</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-soft: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #334155;
+      --accent: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Noto Sans", Tahoma, Geneva, Verdana, sans-serif;
+      background: radial-gradient(circle at top right, #1e293b 0%, var(--bg) 46%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin: 0;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .card {
+      background: linear-gradient(160deg, rgba(17, 24, 39, 0.95), rgba(15, 23, 42, 0.93));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.6px;
+      margin-bottom: 8px;
+    }
+
+    .value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .value.small {
+      font-size: 1rem;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.85);
+    }
+
+    .status.ok {
+      color: var(--ok);
+    }
+
+    .status.warn {
+      color: var(--warn);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(17, 24, 39, 0.9);
+    }
+
+    thead {
+      background: rgba(30, 41, 59, 0.95);
+    }
+
+    th, td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid #253247;
+      vertical-align: top;
+    }
+
+    th {
+      color: #cbd5e1;
+      font-weight: 700;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    tbody tr:hover {
+      background: rgba(56, 189, 248, 0.06);
+    }
+
+    .ok {
+      color: var(--ok);
+      font-weight: 700;
+    }
+
+    .bad {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 1px solid #284157;
+      border-radius: 8px;
+      background: #0f2940;
+      color: #e2e8f0;
+      padding: 7px 10px;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+
+    button:hover {
+      filter: brightness(1.08);
+    }
+
+    .error {
+      margin-top: 8px;
+      color: #fecaca;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 700px) {
+      body {
+        padding: 12px;
+      }
+
+      .value {
+        font-size: 1.2rem;
+      }
+
+      table {
+        font-size: 0.8rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>PDF Backend Dashboard</h1>
+        <div id="last-updated" class="muted">Menunggu data...</div>
+      </div>
+      <div id="health-status" class="status warn">Memuat status...</div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="label">Active Requests</div>
+        <div id="active" class="value">-</div>
+      </div>
+      <div class="card">
+        <div class="label">Total Requests</div>
+        <div id="total" class="value">-</div>
+      </div>
+      <div class="card">
+        <div class="label">Success Rate</div>
+        <div id="success-rate" class="value">-</div>
+      </div>
+      <div class="card">
+        <div class="label">Latency Avg / P95</div>
+        <div id="latency" class="value small">-</div>
+      </div>
+      <div class="card">
+        <div class="label">Bytes In / Out</div>
+        <div id="bytes" class="value small">-</div>
+      </div>
+      <div class="card">
+        <div class="label">Uptime</div>
+        <div id="uptime" class="value small">-</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="label" style="margin: 0;">Recent Requests</div>
+        <button id="refresh-btn" type="button">Refresh Sekarang</button>
+      </div>
+      <div style="overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Status</th>
+              <th>Durasi</th>
+              <th>Level</th>
+              <th>Metode</th>
+              <th>Input</th>
+              <th>Output</th>
+              <th>Hemat</th>
+              <th>Request ID</th>
+            </tr>
+          </thead>
+          <tbody id="recent-body">
+            <tr><td colspan="9">Belum ada data.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="error-msg" class="error"></div>
+    </div>
+  </div>
+
+  <script src="/dashboard/dashboard.js" defer></script>
+</body>
+</html>
