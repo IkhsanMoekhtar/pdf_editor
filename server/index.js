@@ -5,6 +5,8 @@ import multer from 'multer';
 import morgan from 'morgan';
 import { PDFDocument } from 'pdf-lib';
 import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { spawn } from 'node:child_process';
 import rateLimit from 'express-rate-limit';
@@ -48,13 +50,38 @@ const compressRateLimiter = rateLimit({
   message: { error: 'Terlalu banyak request kompresi. Coba lagi sebentar.' },
 });
 
+const REQUEST_TMP_PREFIX = 'pdf-compress-';
+
+async function cleanupRequestTemp(tempDir) {
+  if (!tempDir) return;
+
+  try {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  } catch (cleanupErr) {
+    console.warn('Gagal membersihkan temporary folder:', cleanupErr?.message || cleanupErr);
+  }
+}
+
+app.use(async (req, _res, next) => {
+  try {
+    const requestId = crypto.randomUUID();
+    const requestTempDir = path.join(os.tmpdir(), `${REQUEST_TMP_PREFIX}${requestId}`);
+    await fs.mkdir(requestTempDir, { recursive: true });
+
+    req.requestId = requestId;
+    req.requestTempDir = requestTempDir;
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 const uploadStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, os.tmpdir());
+  destination: (req, _file, cb) => {
+    cb(null, req.requestTempDir || os.tmpdir());
   },
-  filename: (_req, file, cb) => {
-    const unique = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    cb(null, `${unique}-${file.originalname}`);
+  filename: (_req, _file, cb) => {
+    cb(null, 'input.pdf');
   },
 });
 
@@ -329,9 +356,11 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
     return;
   }
 
+  res.setHeader('X-Request-Id', req.requestId || 'unknown');
+
   const level = normalizeCompressionLevel(req.body.level);
   const inputPath = req.file.path;
-  const outputPath = `${inputPath}.compressed.pdf`;
+  const outputPath = path.join(req.requestTempDir || os.tmpdir(), 'compressed.pdf');
   const startedAt = Date.now();
   const originalBuffer = await fs.readFile(inputPath);
   const originalSize = originalBuffer.length;
@@ -405,10 +434,7 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
     console.error('Compression error:', error);
     res.status(500).json({ error: 'Gagal mengompres PDF.' });
   } finally {
-    await Promise.all([
-      fs.rm(inputPath, { force: true }),
-      fs.rm(outputPath, { force: true }),
-    ]);
+    await cleanupRequestTemp(req.requestTempDir);
   }
 });
 
@@ -428,6 +454,10 @@ app.use((err, _req, res, _next) => {
   if (err?.message?.includes('CORS')) {
     res.status(403).json({ error: err.message });
     return;
+  }
+
+  if (_req?.requestTempDir) {
+    cleanupRequestTemp(_req.requestTempDir);
   }
 
   console.error('Unhandled server error:', err);
