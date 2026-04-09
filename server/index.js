@@ -17,6 +17,7 @@ const PORT = Number(process.env.PORT || 8787);
 const TRUST_PROXY = process.env.TRUST_PROXY || '1';
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 20);
+const ENABLE_SECOND_PASS_OPTIMIZER = process.env.ENABLE_SECOND_PASS_OPTIMIZER === '1';
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
@@ -347,6 +348,7 @@ app.get('/api/health', async (_req, res) => {
     service: 'pdf-compress-service',
     ghostscriptAvailable: Boolean(gsCommand),
     ghostscriptCommand: gsCommand,
+    secondPassOptimizerEnabled: ENABLE_SECOND_PASS_OPTIMIZER,
   });
 });
 
@@ -362,8 +364,16 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
   const inputPath = req.file.path;
   const outputPath = path.join(req.requestTempDir || os.tmpdir(), 'compressed.pdf');
   const startedAt = Date.now();
-  const originalBuffer = await fs.readFile(inputPath);
-  const originalSize = originalBuffer.length;
+  const originalSize = (await fs.stat(inputPath)).size;
+  let originalBuffer;
+
+  const getOriginalBuffer = async () => {
+    if (!originalBuffer) {
+      originalBuffer = await fs.readFile(inputPath);
+    }
+
+    return originalBuffer;
+  };
 
   try {
     const gsCommand = await getGhostscriptCommand();
@@ -379,40 +389,40 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
       } catch (gsError) {
         // Keep API reliable when Ghostscript rejects specific PDFs/options.
         console.warn('Ghostscript gagal, fallback ke pdf-lib:', gsError?.message || gsError);
-        const pdfBytes = await fallbackCompressWithPdfLib(originalBuffer);
+        const pdfBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
         outputBuffer = Buffer.from(pdfBytes);
         method = 'pdf-lib-fallback-after-gs-failed';
       }
     } else {
       // Fallback tetap fungsional jika Ghostscript belum terpasang.
-      const pdfBytes = await fallbackCompressWithPdfLib(originalBuffer);
+      const pdfBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
       outputBuffer = Buffer.from(pdfBytes);
     }
 
-    // Always return a processed result (Ghostscript or pdf-lib), even for already-compressed PDFs.
-    strategy = 'fidelity-smart-min-processed-only';
-    const candidates = [];
+    // Default mode prioritizes request latency. Enable second pass only when explicitly needed.
+    strategy = 'latency-first-single-pass';
 
-    if (outputBuffer) {
-      candidates.push({ buffer: outputBuffer, method });
-    }
+    if (ENABLE_SECOND_PASS_OPTIMIZER && method.startsWith('ghostscript')) {
+      strategy = 'fidelity-smart-min-processed-only';
+      const candidates = [{ buffer: outputBuffer, method }];
 
-    try {
-      const optimizedBytes = await fallbackCompressWithPdfLib(originalBuffer);
-      candidates.push({
-        buffer: Buffer.from(optimizedBytes),
-        method: 'pdf-lib-lossless-optimizer',
+      try {
+        const optimizedBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
+        candidates.push({
+          buffer: Buffer.from(optimizedBytes),
+          method: 'pdf-lib-lossless-optimizer',
+        });
+      } catch (optErr) {
+        console.warn('Optimizer lossless gagal:', optErr?.message || optErr);
+      }
+
+      const best = candidates.reduce((currentBest, item) => {
+        return item.buffer.length < currentBest.buffer.length ? item : currentBest;
       });
-    } catch (optErr) {
-      console.warn('Optimizer lossless gagal:', optErr?.message || optErr);
+
+      outputBuffer = best.buffer;
+      method = best.method;
     }
-
-    const best = candidates.reduce((currentBest, item) => {
-      return item.buffer.length < currentBest.buffer.length ? item : currentBest;
-    });
-
-    outputBuffer = best.buffer;
-    method = best.method;
 
     const compressedSize = outputBuffer.length;
 
