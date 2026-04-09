@@ -32,6 +32,9 @@ app.set('trust proxy', TRUST_PROXY);
 app.use(morgan('tiny'));
 app.use(helmet({
   crossOriginResourcePolicy: false,
+  // Hugging Face Spaces renders the app in an iframe from huggingface.co.
+  // Disable frameguard so the hf.space app is not blocked with "refused to connect".
+  frameguard: false,
 }));
 app.use(cors({
   origin: (origin, callback) => {
