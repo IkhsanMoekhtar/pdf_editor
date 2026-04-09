@@ -1,11 +1,3 @@
----
-title: Pdf Backend
-emoji: 🌖
-colorFrom: blue
-colorTo: yellow
-sdk: docker
-pinned: false
----
 
 # PDF Editor (React + Vite + Node)
 

@@ -455,6 +455,44 @@ async function fallbackCompressWithPdfLib(pdfBytes) {
   });
 }
 
+app.get('/', (req, res) => {
+  const queryToken = typeof req.query?.token === 'string' ? req.query.token.trim() : '';
+  const tokenQuery = queryToken ? `?token=${encodeURIComponent(queryToken)}` : '';
+
+  if (!DASHBOARD_TOKEN || queryToken) {
+    res.redirect(302, `/dashboard${tokenQuery}`);
+    return;
+  }
+
+  res.type('html').send(`<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Backend Service</title>
+  <style>
+    body { font-family: Segoe UI, Tahoma, Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+    .wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .card { max-width: 620px; width: 100%; background: #111827; border: 1px solid #334155; border-radius: 14px; padding: 20px; }
+    h1 { margin: 0 0 10px; font-size: 1.25rem; }
+    p { margin: 0 0 12px; color: #cbd5e1; }
+    code { background: #1f2937; padding: 2px 6px; border-radius: 6px; }
+    a { color: #38bdf8; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>PDF Backend Service Aktif</h1>
+      <p>Dashboard diproteksi token. Akses dengan format:</p>
+      <p><code>/dashboard?token=TOKEN_ANDA</code></p>
+      <p>Endpoint health check: <a href="/api/health">/api/health</a></p>
+    </div>
+  </div>
+</body>
+</html>`);
+});
+
 app.get('/api/health', async (_req, res) => {
   const gsCommand = await getGhostscriptCommand();
   console.log('[Health Check] Found Ghostscript:', gsCommand);
