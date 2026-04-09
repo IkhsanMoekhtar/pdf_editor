@@ -35,6 +35,9 @@ app.use(helmet({
   // Hugging Face Spaces renders the app in an iframe from huggingface.co.
   // Disable frameguard so the hf.space app is not blocked with "refused to connect".
   frameguard: false,
+  // Helmet's default CSP includes frame-ancestors 'self', which blocks
+  // Hugging Face App iframe rendering even when frameguard is disabled.
+  contentSecurityPolicy: false,
 }));
 app.use(cors({
   origin: (origin, callback) => {
