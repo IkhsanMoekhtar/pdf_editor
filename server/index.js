@@ -298,17 +298,18 @@ function getCompressionSettings(level) {
     },
     aggressive: {
       name: 'Aggressive',
-      imageResolution: 72,
+      imageResolution: 64,
       downsampling: true,
       pdfPreset: '/screen',
       compatibilityLevel: '1.4',
-      colorStrategy: 'RGB',
-      jpegQuality: 24,
+      // Keep original color intent (no grayscale conversion), only increase lossy compression.
+      colorStrategy: 'LeaveColorUnchanged',
+      jpegQuality: 20,
       compressFonts: true,
       embedAllFonts: false,
       subsetFonts: true,
       adaptiveImageFiltering: false,
-      downsampleThreshold: 1.1,
+      downsampleThreshold: 1.0,
       passThroughImages: false,
       optimizeStructure: true,
     }
@@ -339,8 +340,9 @@ function getCompressionCandidates(level) {
   // aggressive
   return [
     base,
-    cloneSettings(base, { imageResolution: 60, jpegQuality: 18, downsampleThreshold: 1.0 }),
-    cloneSettings(base, { imageResolution: 48, jpegQuality: 14, downsampleThreshold: 1.0 }),
+    cloneSettings(base, { imageResolution: 52, jpegQuality: 16, downsampleThreshold: 1.0 }),
+    cloneSettings(base, { imageResolution: 44, jpegQuality: 12, downsampleThreshold: 1.0 }),
+    cloneSettings(base, { imageResolution: 36, jpegQuality: 10, downsampleThreshold: 1.0 }),
   ];
 }
 
