@@ -232,19 +232,22 @@ let cachedGhostscriptCommand;
 let ghostscriptLookupPromise = null;
 
 function getCompressionSettings(level) {
-  // Fidelity-first profiles: keep output visually identical while shrinking structure/image streams.
+  // Distinct profiles so each level produces meaningful trade-offs.
   const settings = {
     fast: {
       name: 'Fast',
-      imageResolution: 300,
-      downsampling: false,
-      pdfPreset: null,
+      imageResolution: 220,
+      downsampling: true,
+      pdfPreset: '/ebook',
       compatibilityLevel: '1.6',
       colorStrategy: 'LeaveColorUnchanged',
-      jpegQuality: null,
-      preserveFonts: true,
-      adaptiveImageFiltering: true,
-      passThroughImages: true,
+      jpegQuality: 78,
+      compressFonts: true,
+      embedAllFonts: false,
+      subsetFonts: true,
+      adaptiveImageFiltering: false,
+      downsampleThreshold: 1.35,
+      passThroughImages: false,
     },
     lossless: {
       name: 'Lossless',
@@ -254,21 +257,26 @@ function getCompressionSettings(level) {
       compatibilityLevel: '1.7',
       colorStrategy: 'LeaveColorUnchanged',
       jpegQuality: null,
-      preserveFonts: true,
+      compressFonts: false,
+      embedAllFonts: true,
+      subsetFonts: false,
       passThroughImages: true,
       adaptiveImageFiltering: true,
     },
     balanced: {
       name: 'Balanced',
-      imageResolution: 300,
-      downsampling: false,
-      pdfPreset: null,
-      compatibilityLevel: '1.7',
+      imageResolution: 150,
+      downsampling: true,
+      pdfPreset: '/ebook',
+      compatibilityLevel: '1.5',
       colorStrategy: 'LeaveColorUnchanged',
-      jpegQuality: null,
-      preserveFonts: true,
-      adaptiveImageFiltering: true,
-      passThroughImages: true,
+      jpegQuality: 62,
+      compressFonts: true,
+      embedAllFonts: false,
+      subsetFonts: true,
+      adaptiveImageFiltering: false,
+      downsampleThreshold: 1.25,
+      passThroughImages: false,
     },
     aggressive: {
       name: 'Aggressive',
@@ -278,9 +286,11 @@ function getCompressionSettings(level) {
       compatibilityLevel: '1.4',
       colorStrategy: 'RGB',
       jpegQuality: 38,
-      preserveFonts: false,
+      compressFonts: true,
+      embedAllFonts: false,
+      subsetFonts: true,
       adaptiveImageFiltering: false,
-      downsampleThreshold: 1.2,
+      downsampleThreshold: 1.1,
       passThroughImages: false,
     }
   };
@@ -303,7 +313,7 @@ function buildGhostscriptArgs(settings, inputPath, outputPath) {
     '-dUseCropBox=true',
     '-dPreserveOverprintSettings=true',
     '-dKeepDeviceN=true',
-    '-dConvertCMYKImagesToRGB=false',
+    `-dConvertCMYKImagesToRGB=${settings.colorStrategy === 'RGB' ? 'true' : 'false'}`,
   ];
 
   if (settings.downsampling) {
@@ -314,15 +324,9 @@ function buildGhostscriptArgs(settings, inputPath, outputPath) {
     args.push(`-dPDFSETTINGS=${settings.pdfPreset}`);
   }
 
-  if (settings.preserveFonts) {
-    args.push('-dCompressFonts=false');
-    args.push('-dEmbedAllFonts=true');
-    args.push('-dSubsetFonts=false');
-  } else {
-    args.push('-dCompressFonts=true');
-    args.push('-dEmbedAllFonts=false');
-    args.push('-dSubsetFonts=true');
-  }
+  args.push(`-dCompressFonts=${settings.compressFonts === false ? 'false' : 'true'}`);
+  args.push(`-dEmbedAllFonts=${settings.embedAllFonts ? 'true' : 'false'}`);
+  args.push(`-dSubsetFonts=${settings.subsetFonts === false ? 'false' : 'true'}`);
 
   // Add downsampling for non-lossless
   if (settings.downsampling) {
@@ -606,6 +610,13 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
 
       outputBuffer = best.buffer;
       method = best.method;
+    }
+
+    // Guardrail: never return a "compressed" file that is larger than the original.
+    if (outputBuffer.length >= originalSize) {
+      outputBuffer = Buffer.from(await getOriginalBuffer());
+      method = `${method}|size-guard-original`;
+      strategy = `${strategy}+size-guard`;
     }
 
     const compressedSize = outputBuffer.length;
