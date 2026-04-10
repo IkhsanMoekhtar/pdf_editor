@@ -151,6 +151,7 @@ function compressionMetricsMiddleware(req, res, next) {
       level: meta.level || normalizeCompressionLevel(req.body?.level),
       method: meta.method || 'unknown',
       strategy: meta.strategy || 'unknown',
+      selectedFrom: meta.selectedFrom || 'unknown',
       originalSize: inputSize,
       compressedSize: outputSize,
       savedPercent: Number(meta.savedPercent || 0),
@@ -568,6 +569,7 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
     let outputBuffer;
     let method = 'pdf-lib-fallback';
     let strategy = 'single-pass';
+    let selectedFrom = level;
 
     if (gsCommand) {
       try {
@@ -580,11 +582,13 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
         const pdfBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
         outputBuffer = Buffer.from(pdfBytes);
         method = 'pdf-lib-fallback-after-gs-failed';
+        selectedFrom = 'pdf-lib-fallback-after-gs-failed';
       }
     } else {
       // Fallback tetap fungsional jika Ghostscript belum terpasang.
       const pdfBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
       outputBuffer = Buffer.from(pdfBytes);
+      selectedFrom = 'pdf-lib-fallback-no-gs';
     }
 
     // Default mode prioritizes request latency. Enable second pass only when explicitly needed.
@@ -610,6 +614,7 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
 
       outputBuffer = best.buffer;
       method = best.method;
+      selectedFrom = best.method;
     }
 
     // No-gain fallback: retry a safer lossless Ghostscript profile first.
@@ -623,6 +628,7 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
             outputBuffer = losslessRetryBuffer;
             method = `ghostscript:${gsCommand}|lossless-retry-after-no-gain`;
             strategy = `${strategy}+no-gain-lossless-retry`;
+            selectedFrom = 'lossless-retry-after-no-gain';
           }
         } catch (losslessRetryErr) {
           console.warn('Lossless retry gagal:', losslessRetryErr?.message || losslessRetryErr);
@@ -640,6 +646,7 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
           outputBuffer = optimizedBuffer;
           method = 'pdf-lib-lossless-optimizer-after-no-gain';
           strategy = `${strategy}+no-gain-optimizer`;
+          selectedFrom = 'pdf-lib-lossless-optimizer-after-no-gain';
         }
       } catch (optErr) {
         console.warn('No-gain optimizer gagal:', optErr?.message || optErr);
@@ -651,6 +658,7 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
       outputBuffer = Buffer.from(await getOriginalBuffer());
       method = `${method}|size-guard-original`;
       strategy = `${strategy}+size-guard`;
+      selectedFrom = 'original-size-guard';
     }
 
     const compressedSize = outputBuffer.length;
@@ -662,6 +670,7 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
       level,
       method,
       strategy,
+      selectedFrom,
       originalSize,
       compressedSize,
       savedPercent,
@@ -676,6 +685,7 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
     res.setHeader('X-Saved-Percent', String(savedPercent));
     res.setHeader('X-Compression-Level', level);
     res.setHeader('X-Compression-Strategy', strategy);
+    res.setHeader('X-Compression-Selected-From', selectedFrom);
     res.setHeader('X-Processing-Time-Ms', String(Date.now() - startedAt));
     res.send(outputBuffer);
   } catch (error) {
