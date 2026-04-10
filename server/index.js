@@ -229,6 +229,20 @@ function normalizeCompressionLevel(level) {
   return SUPPORTED_COMPRESSION_LEVELS.has(normalizedLevel) ? normalizedLevel : 'balanced';
 }
 
+const LEVEL_MIN_SAVING_PERCENT = {
+  fast: 2,
+  lossless: 0.5,
+  balanced: 6,
+  aggressive: 12,
+};
+
+function cloneSettings(settings, overrides = {}) {
+  return {
+    ...settings,
+    ...overrides,
+  };
+}
+
 let cachedGhostscriptCommand;
 let ghostscriptLookupPromise = null;
 
@@ -297,6 +311,37 @@ function getCompressionSettings(level) {
   };
   
   return settings[level] || settings.balanced;
+}
+
+function getCompressionCandidates(level) {
+  const base = getCompressionSettings(level);
+
+  if (level === 'lossless') {
+    return [base];
+  }
+
+  if (level === 'fast') {
+    return [
+      base,
+      cloneSettings(base, { imageResolution: 190, jpegQuality: 72, downsampleThreshold: 1.25 }),
+      cloneSettings(base, { imageResolution: 160, jpegQuality: 66, downsampleThreshold: 1.15 }),
+    ];
+  }
+
+  if (level === 'balanced') {
+    return [
+      base,
+      cloneSettings(base, { imageResolution: 130, jpegQuality: 54, downsampleThreshold: 1.12 }),
+      cloneSettings(base, { imageResolution: 115, jpegQuality: 48, downsampleThreshold: 1.05 }),
+    ];
+  }
+
+  // aggressive
+  return [
+    base,
+    cloneSettings(base, { imageResolution: 84, jpegQuality: 30, downsampleThreshold: 1.0 }),
+    cloneSettings(base, { imageResolution: 72, jpegQuality: 24, downsampleThreshold: 1.0 }),
+  ];
 }
 
 function buildGhostscriptArgs(settings, inputPath, outputPath) {
@@ -427,10 +472,8 @@ async function getGhostscriptCommand() {
   return ghostscriptLookupPromise;
 }
 
-function runGhostscript(inputPath, outputPath, levelSetting, gsCommand) {
+function runGhostscript(inputPath, outputPath, settings, gsCommand) {
   return new Promise((resolve, reject) => {
-    // Get smart compression settings
-    const settings = getCompressionSettings(levelSetting);
     const args = buildGhostscriptArgs(settings, inputPath, outputPath);
 
     const proc = spawn(gsCommand, args, { windowsHide: true });
@@ -573,8 +616,31 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
 
     if (gsCommand) {
       try {
-        await runGhostscript(inputPath, outputPath, level, gsCommand);
-        outputBuffer = await fs.readFile(outputPath);
+        const candidates = getCompressionCandidates(level);
+        let bestOutputBuffer = null;
+        let bestSelectedFrom = level;
+        const savingTarget = LEVEL_MIN_SAVING_PERCENT[level] || 0;
+
+        for (let idx = 0; idx < candidates.length; idx += 1) {
+          const settings = candidates[idx];
+          await runGhostscript(inputPath, outputPath, settings, gsCommand);
+          const candidateBuffer = await fs.readFile(outputPath);
+
+          if (!bestOutputBuffer || candidateBuffer.length < bestOutputBuffer.length) {
+            bestOutputBuffer = candidateBuffer;
+            bestSelectedFrom = `${level}:profile-${idx + 1}`;
+          }
+
+          if (bestOutputBuffer.length < originalSize) {
+            const savedPercent = ((originalSize - bestOutputBuffer.length) / originalSize) * 100;
+            if (savedPercent >= savingTarget) {
+              break;
+            }
+          }
+        }
+
+        outputBuffer = bestOutputBuffer;
+        selectedFrom = bestSelectedFrom;
         method = `ghostscript:${gsCommand}`;
       } catch (gsError) {
         // Keep API reliable when Ghostscript rejects specific PDFs/options.
@@ -615,25 +681,6 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
       outputBuffer = best.buffer;
       method = best.method;
       selectedFrom = best.method;
-    }
-
-    // No-gain fallback: retry a safer lossless Ghostscript profile first.
-    if (outputBuffer.length >= originalSize) {
-      if (gsCommand && level !== 'lossless') {
-        try {
-          await runGhostscript(inputPath, outputPath, 'lossless', gsCommand);
-          const losslessRetryBuffer = await fs.readFile(outputPath);
-
-          if (losslessRetryBuffer.length < outputBuffer.length) {
-            outputBuffer = losslessRetryBuffer;
-            method = `ghostscript:${gsCommand}|lossless-retry-after-no-gain`;
-            strategy = `${strategy}+no-gain-lossless-retry`;
-            selectedFrom = 'lossless-retry-after-no-gain';
-          }
-        } catch (losslessRetryErr) {
-          console.warn('Lossless retry gagal:', losslessRetryErr?.message || losslessRetryErr);
-        }
-      }
     }
 
     // Secondary fallback: try pdf-lib optimizer before applying hard size guard.
