@@ -263,6 +263,7 @@ function getCompressionSettings(level) {
       adaptiveImageFiltering: true,
       downsampleThreshold: 1.5,
       passThroughImages: true,
+      optimizeStructure: false,
     },
     lossless: {
       name: 'Lossless',
@@ -277,6 +278,7 @@ function getCompressionSettings(level) {
       subsetFonts: false,
       passThroughImages: true,
       adaptiveImageFiltering: true,
+      optimizeStructure: false,
     },
     balanced: {
       name: 'Balanced',
@@ -292,6 +294,7 @@ function getCompressionSettings(level) {
       adaptiveImageFiltering: false,
       downsampleThreshold: 1.15,
       passThroughImages: false,
+      optimizeStructure: true,
     },
     aggressive: {
       name: 'Aggressive',
@@ -307,6 +310,7 @@ function getCompressionSettings(level) {
       adaptiveImageFiltering: false,
       downsampleThreshold: 1.1,
       passThroughImages: false,
+      optimizeStructure: true,
     }
   };
   
@@ -341,17 +345,18 @@ function getCompressionCandidates(level) {
 }
 
 function buildGhostscriptArgs(settings, inputPath, outputPath) {
+  const shouldOptimizeStructure = settings.optimizeStructure !== false;
   const args = [
     '-sDEVICE=pdfwrite',
     `-dCompatibilityLevel=${settings.compatibilityLevel || '1.4'}`,
     '-dNOPAUSE',
     '-dQUIET',
     '-dBATCH',
-    '-dDetectDuplicateImages=true',
-    '-dCompressPages=true',
-    '-dEncodeColorImages=true',
-    '-dEncodeGrayImages=true',
-    '-dEncodeMonoImages=true',
+    `-dDetectDuplicateImages=${shouldOptimizeStructure ? 'true' : 'false'}`,
+    `-dCompressPages=${shouldOptimizeStructure ? 'true' : 'false'}`,
+    `-dEncodeColorImages=${shouldOptimizeStructure ? 'true' : 'false'}`,
+    `-dEncodeGrayImages=${shouldOptimizeStructure ? 'true' : 'false'}`,
+    `-dEncodeMonoImages=${shouldOptimizeStructure ? 'true' : 'false'}`,
     '-dUseCropBox=true',
     '-dPreserveOverprintSettings=true',
     '-dKeepDeviceN=true',
