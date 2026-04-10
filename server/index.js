@@ -612,7 +612,25 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
       method = best.method;
     }
 
-    // No-gain fallback: try pdf-lib optimizer before applying hard size guard.
+    // No-gain fallback: retry a safer lossless Ghostscript profile first.
+    if (outputBuffer.length >= originalSize) {
+      if (gsCommand && level !== 'lossless') {
+        try {
+          await runGhostscript(inputPath, outputPath, 'lossless', gsCommand);
+          const losslessRetryBuffer = await fs.readFile(outputPath);
+
+          if (losslessRetryBuffer.length < outputBuffer.length) {
+            outputBuffer = losslessRetryBuffer;
+            method = `ghostscript:${gsCommand}|lossless-retry-after-no-gain`;
+            strategy = `${strategy}+no-gain-lossless-retry`;
+          }
+        } catch (losslessRetryErr) {
+          console.warn('Lossless retry gagal:', losslessRetryErr?.message || losslessRetryErr);
+        }
+      }
+    }
+
+    // Secondary fallback: try pdf-lib optimizer before applying hard size guard.
     if (outputBuffer.length >= originalSize) {
       try {
         const optimizedBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
