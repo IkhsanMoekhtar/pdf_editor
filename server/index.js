@@ -633,7 +633,10 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
 
           if (bestOutputBuffer.length < originalSize) {
             const savedPercent = ((originalSize - bestOutputBuffer.length) / originalSize) * 100;
-            if (savedPercent >= savingTarget) {
+            const shouldStopForFast = level === 'fast' && savedPercent >= savingTarget;
+            const shouldStopForBalanced = level === 'balanced' && idx >= 1 && savedPercent >= savingTarget;
+
+            if (shouldStopForFast || shouldStopForBalanced) {
               break;
             }
           }
