@@ -612,6 +612,22 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
       method = best.method;
     }
 
+    // No-gain fallback: try pdf-lib optimizer before applying hard size guard.
+    if (outputBuffer.length >= originalSize) {
+      try {
+        const optimizedBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
+        const optimizedBuffer = Buffer.from(optimizedBytes);
+
+        if (optimizedBuffer.length < outputBuffer.length) {
+          outputBuffer = optimizedBuffer;
+          method = 'pdf-lib-lossless-optimizer-after-no-gain';
+          strategy = `${strategy}+no-gain-optimizer`;
+        }
+      } catch (optErr) {
+        console.warn('No-gain optimizer gagal:', optErr?.message || optErr);
+      }
+    }
+
     // Guardrail: never return a "compressed" file that is larger than the original.
     if (outputBuffer.length >= originalSize) {
       outputBuffer = Buffer.from(await getOriginalBuffer());
