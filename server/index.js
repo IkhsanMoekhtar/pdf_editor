@@ -251,18 +251,18 @@ function getCompressionSettings(level) {
   const settings = {
     fast: {
       name: 'Fast',
-      imageResolution: 260,
-      downsampling: true,
-      pdfPreset: '/ebook',
+      imageResolution: 300,
+      downsampling: false,
+      pdfPreset: null,
       compatibilityLevel: '1.6',
       colorStrategy: 'LeaveColorUnchanged',
-      jpegQuality: 84,
+      jpegQuality: null,
       compressFonts: true,
       embedAllFonts: false,
       subsetFonts: true,
-      adaptiveImageFiltering: false,
-      downsampleThreshold: 1.45,
-      passThroughImages: false,
+      adaptiveImageFiltering: true,
+      downsampleThreshold: 1.5,
+      passThroughImages: true,
     },
     lossless: {
       name: 'Lossless',
@@ -321,11 +321,7 @@ function getCompressionCandidates(level) {
   }
 
   if (level === 'fast') {
-    return [
-      base,
-      cloneSettings(base, { imageResolution: 230, jpegQuality: 78, downsampleThreshold: 1.35 }),
-      cloneSettings(base, { imageResolution: 210, jpegQuality: 72, downsampleThreshold: 1.25 }),
-    ];
+    return [base];
   }
 
   if (level === 'balanced') {
