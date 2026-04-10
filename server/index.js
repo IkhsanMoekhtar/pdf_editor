@@ -615,7 +615,19 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
     let strategy = 'single-pass';
     let selectedFrom = level;
 
-    if (gsCommand) {
+    if (level === 'fast') {
+      // Fast mode prioritizes latency and fidelity over size reduction.
+      outputBuffer = Buffer.from(await getOriginalBuffer());
+      method = 'fast-pass-through-original';
+      strategy = 'speed-first-pass-through';
+      selectedFrom = 'original-fast-pass-through';
+    } else if (level === 'lossless') {
+      const pdfBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
+      outputBuffer = Buffer.from(pdfBytes);
+      method = 'pdf-lib-lossless-single-pass';
+      strategy = 'lossless-single-pass';
+      selectedFrom = 'pdf-lib-lossless-single-pass';
+    } else if (gsCommand) {
       try {
         const candidates = getCompressionCandidates(level);
         let bestOutputBuffer = null;
@@ -646,23 +658,24 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
         outputBuffer = bestOutputBuffer;
         selectedFrom = bestSelectedFrom;
         method = `ghostscript:${gsCommand}`;
+        strategy = 'latency-first-single-pass';
       } catch (gsError) {
         // Keep API reliable when Ghostscript rejects specific PDFs/options.
         console.warn('Ghostscript gagal, fallback ke pdf-lib:', gsError?.message || gsError);
         const pdfBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
         outputBuffer = Buffer.from(pdfBytes);
         method = 'pdf-lib-fallback-after-gs-failed';
+        strategy = 'lossless-fallback-after-gs-failed';
         selectedFrom = 'pdf-lib-fallback-after-gs-failed';
       }
     } else {
-      // Fallback tetap fungsional jika Ghostscript belum terpasang.
+      // Fallback tetap fungsional jika Ghostscript belum terpasang untuk mode lossy.
       const pdfBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
       outputBuffer = Buffer.from(pdfBytes);
+      method = 'pdf-lib-fallback-no-gs';
+      strategy = 'lossless-fallback-no-gs';
       selectedFrom = 'pdf-lib-fallback-no-gs';
     }
-
-    // Default mode prioritizes request latency. Enable second pass only when explicitly needed.
-    strategy = 'latency-first-single-pass';
 
     if (ENABLE_SECOND_PASS_OPTIMIZER && method.startsWith('ghostscript')) {
       strategy = 'fidelity-smart-min-processed-only';
