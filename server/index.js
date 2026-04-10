@@ -230,10 +230,10 @@ function normalizeCompressionLevel(level) {
 }
 
 const LEVEL_MIN_SAVING_PERCENT = {
-  fast: 2,
+  fast: 1.5,
   lossless: 0.5,
-  balanced: 6,
-  aggressive: 12,
+  balanced: 8,
+  aggressive: 15,
 };
 
 function cloneSettings(settings, overrides = {}) {
@@ -251,17 +251,17 @@ function getCompressionSettings(level) {
   const settings = {
     fast: {
       name: 'Fast',
-      imageResolution: 220,
+      imageResolution: 260,
       downsampling: true,
       pdfPreset: '/ebook',
       compatibilityLevel: '1.6',
       colorStrategy: 'LeaveColorUnchanged',
-      jpegQuality: 78,
+      jpegQuality: 84,
       compressFonts: true,
       embedAllFonts: false,
       subsetFonts: true,
       adaptiveImageFiltering: false,
-      downsampleThreshold: 1.35,
+      downsampleThreshold: 1.45,
       passThroughImages: false,
     },
     lossless: {
@@ -280,27 +280,27 @@ function getCompressionSettings(level) {
     },
     balanced: {
       name: 'Balanced',
-      imageResolution: 150,
+      imageResolution: 130,
       downsampling: true,
       pdfPreset: '/ebook',
       compatibilityLevel: '1.5',
       colorStrategy: 'LeaveColorUnchanged',
-      jpegQuality: 62,
+      jpegQuality: 50,
       compressFonts: true,
       embedAllFonts: false,
       subsetFonts: true,
       adaptiveImageFiltering: false,
-      downsampleThreshold: 1.25,
+      downsampleThreshold: 1.15,
       passThroughImages: false,
     },
     aggressive: {
       name: 'Aggressive',
-      imageResolution: 96,
+      imageResolution: 72,
       downsampling: true,
       pdfPreset: '/screen',
       compatibilityLevel: '1.4',
       colorStrategy: 'RGB',
-      jpegQuality: 38,
+      jpegQuality: 24,
       compressFonts: true,
       embedAllFonts: false,
       subsetFonts: true,
@@ -323,24 +323,24 @@ function getCompressionCandidates(level) {
   if (level === 'fast') {
     return [
       base,
-      cloneSettings(base, { imageResolution: 190, jpegQuality: 72, downsampleThreshold: 1.25 }),
-      cloneSettings(base, { imageResolution: 160, jpegQuality: 66, downsampleThreshold: 1.15 }),
+      cloneSettings(base, { imageResolution: 230, jpegQuality: 78, downsampleThreshold: 1.35 }),
+      cloneSettings(base, { imageResolution: 210, jpegQuality: 72, downsampleThreshold: 1.25 }),
     ];
   }
 
   if (level === 'balanced') {
     return [
       base,
-      cloneSettings(base, { imageResolution: 130, jpegQuality: 54, downsampleThreshold: 1.12 }),
-      cloneSettings(base, { imageResolution: 115, jpegQuality: 48, downsampleThreshold: 1.05 }),
+      cloneSettings(base, { imageResolution: 115, jpegQuality: 42, downsampleThreshold: 1.08 }),
+      cloneSettings(base, { imageResolution: 100, jpegQuality: 36, downsampleThreshold: 1.02 }),
     ];
   }
 
   // aggressive
   return [
     base,
-    cloneSettings(base, { imageResolution: 84, jpegQuality: 30, downsampleThreshold: 1.0 }),
-    cloneSettings(base, { imageResolution: 72, jpegQuality: 24, downsampleThreshold: 1.0 }),
+    cloneSettings(base, { imageResolution: 60, jpegQuality: 18, downsampleThreshold: 1.0 }),
+    cloneSettings(base, { imageResolution: 48, jpegQuality: 14, downsampleThreshold: 1.0 }),
   ];
 }
 
