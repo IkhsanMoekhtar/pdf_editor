@@ -13,9 +13,10 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express-rate-limit": "^7.5.0",
     "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
     "helmet": "^8.1.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.7.0",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",

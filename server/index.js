@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import multer from 'multer';
 import morgan from 'morgan';
 import { PDFDocument } from 'pdf-lib';
+import JSZip from 'jszip';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -218,6 +219,22 @@ const upload = multer({
   },
 });
 
+const uploadMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_UPLOAD_MB * 1024 * 1024,
+    files: 20,
+  },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      cb(new Error('File harus berformat PDF.'));
+      return;
+    }
+
+    cb(null, true);
+  },
+});
+
 const SUPPORTED_COMPRESSION_LEVELS = new Set(['fast', 'lossless', 'balanced', 'aggressive']);
 
 function normalizeCompressionLevel(level) {
@@ -227,6 +244,68 @@ function normalizeCompressionLevel(level) {
 
   const normalizedLevel = level.trim().toLowerCase();
   return SUPPORTED_COMPRESSION_LEVELS.has(normalizedLevel) ? normalizedLevel : 'balanced';
+}
+
+function sanitizeBaseFilename(filename = 'document') {
+  const normalized = String(filename || 'document')
+    .replace(/\.[^/.]+$/, '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  return normalized || 'document';
+}
+
+function parseSplitRanges(rawRanges, totalPages) {
+  if (typeof rawRanges !== 'string' || !rawRanges.trim()) {
+    throw new Error('Range halaman wajib diisi. Contoh: 1-3,5,8-10');
+  }
+
+  const parts = rawRanges
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (!parts.length) {
+    throw new Error('Format range tidak valid.');
+  }
+
+  const ranges = [];
+
+  for (const part of parts) {
+    const singleMatch = /^(\d+)$/.exec(part);
+    const spanMatch = /^(\d+)\s*-\s*(\d+)$/.exec(part);
+
+    let start;
+    let end;
+
+    if (singleMatch) {
+      start = Number(singleMatch[1]);
+      end = start;
+    } else if (spanMatch) {
+      start = Number(spanMatch[1]);
+      end = Number(spanMatch[2]);
+    } else {
+      throw new Error(`Format range tidak valid: ${part}`);
+    }
+
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < 1) {
+      throw new Error(`Range tidak valid: ${part}`);
+    }
+
+    if (start > end) {
+      throw new Error(`Range harus urut naik: ${part}`);
+    }
+
+    if (start > totalPages || end > totalPages) {
+      throw new Error(`Range ${part} melebihi total halaman (${totalPages}).`);
+    }
+
+    ranges.push({ start, end });
+  }
+
+  return ranges;
 }
 
 const LEVEL_MIN_SAVING_PERCENT = {
@@ -585,6 +664,116 @@ app.get('/api/dashboard/metrics', requireDashboardAccess, (req, res) => {
     recent: runtimeMetrics.recent.slice(0, limit),
     retention: DASHBOARD_RETENTION,
   });
+});
+
+app.post('/api/merge', uploadMemory.array('pdfs', 20), async (req, res) => {
+  const files = req.files || [];
+
+  if (files.length < 2) {
+    res.status(400).json({ error: 'Upload minimal 2 file PDF untuk digabung.' });
+    return;
+  }
+
+  try {
+    const mergedDoc = await PDFDocument.create();
+    let totalPages = 0;
+
+    for (const file of files) {
+      const srcDoc = await PDFDocument.load(file.buffer, { ignoreEncryption: true });
+      const pageIndices = srcDoc.getPages().map((_, index) => index);
+      const copiedPages = await mergedDoc.copyPages(srcDoc, pageIndices);
+
+      copiedPages.forEach((page) => mergedDoc.addPage(page));
+      totalPages += copiedPages.length;
+    }
+
+    const bytes = await mergedDoc.save({
+      useObjectStreams: true,
+      updateFieldAppearances: false,
+      addDefaultPage: false,
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="merged.pdf"');
+    res.setHeader('X-Merged-Files', String(files.length));
+    res.setHeader('X-Total-Pages', String(totalPages));
+    res.send(Buffer.from(bytes));
+  } catch (error) {
+    console.error('Merge error:', error);
+    res.status(500).json({ error: 'Gagal menggabungkan PDF.' });
+  }
+});
+
+app.post('/api/split', uploadMemory.single('pdf'), async (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ error: 'File PDF tidak ditemukan.' });
+    return;
+  }
+
+  const mode = typeof req.body?.mode === 'string' ? req.body.mode.trim().toLowerCase() : 'each';
+  const allowedModes = new Set(['each', 'ranges']);
+
+  if (!allowedModes.has(mode)) {
+    res.status(400).json({ error: 'Mode split tidak valid. Gunakan each atau ranges.' });
+    return;
+  }
+
+  try {
+    const sourceDoc = await PDFDocument.load(req.file.buffer, { ignoreEncryption: true });
+    const totalPages = sourceDoc.getPageCount();
+
+    if (!totalPages) {
+      res.status(400).json({ error: 'PDF tidak memiliki halaman untuk dipisah.' });
+      return;
+    }
+
+    const ranges = mode === 'each'
+      ? Array.from({ length: totalPages }, (_, index) => ({ start: index + 1, end: index + 1 }))
+      : parseSplitRanges(req.body?.ranges, totalPages);
+
+    const zip = new JSZip();
+    const baseName = sanitizeBaseFilename(req.file.originalname || 'split');
+
+    for (const range of ranges) {
+      const splitDoc = await PDFDocument.create();
+      const pageIndices = [];
+
+      for (let page = range.start; page <= range.end; page += 1) {
+        pageIndices.push(page - 1);
+      }
+
+      const copiedPages = await splitDoc.copyPages(sourceDoc, pageIndices);
+      copiedPages.forEach((page) => splitDoc.addPage(page));
+
+      const splitBytes = await splitDoc.save({
+        useObjectStreams: true,
+        updateFieldAppearances: false,
+        addDefaultPage: false,
+      });
+
+      const suffix = range.start === range.end
+        ? `p${String(range.start).padStart(3, '0')}`
+        : `p${String(range.start).padStart(3, '0')}-${String(range.end).padStart(3, '0')}`;
+
+      zip.file(`${baseName}_${suffix}.pdf`, Buffer.from(splitBytes));
+    }
+
+    const zipBuffer = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 },
+    });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${baseName}_split.zip"`);
+    res.setHeader('X-Split-Mode', mode);
+    res.setHeader('X-Split-Parts', String(ranges.length));
+    res.setHeader('X-Total-Pages', String(totalPages));
+    res.send(zipBuffer);
+  } catch (error) {
+    console.error('Split error:', error);
+    res.status(500).json({ error: error.message || 'Gagal memisah PDF.' });
+  }
 });
 
 app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upload.single('pdf'), async (req, res) => {
