@@ -43,7 +43,7 @@ function fmtTime(ts) {
 
 function renderRecent(recent) {
   if (!Array.isArray(recent) || recent.length === 0) {
-    recentBodyEl.innerHTML = '<tr><td colspan="9">Belum ada request kompresi.</td></tr>';
+    recentBodyEl.innerHTML = '<tr><td colspan="11">Belum ada request.</td></tr>';
     return;
   }
 
@@ -53,8 +53,11 @@ function renderRecent(recent) {
     return `
       <tr>
         <td>${fmtTime(item.at)}</td>
+        <td>${item.httpMethod || '-'}</td>
+        <td>${item.route || '-'}</td>
         <td class="${statusClass}">${item.statusCode}</td>
         <td>${formatDuration(item.durationMs)}</td>
+        <td>${item.operation || '-'}</td>
         <td>${item.level || '-'}</td>
         <td>${item.method || '-'}</td>
         <td>${formatBytes(item.originalSize)}</td>
@@ -71,11 +74,11 @@ function renderSummary(summary) {
   const totals = summary?.totals || {};
   const latency = summary?.latencyMs || {};
 
-  const total = Number(totals.compressRequests || 0);
+  const total = Number(totals.totalRequests || totals.compressRequests || 0);
   const success = Number(totals.success || 0);
   const successRate = total > 0 ? ((success / total) * 100).toFixed(1) : '0.0';
 
-  activeEl.textContent = Number(summary?.activeCompressRequests || 0);
+  activeEl.textContent = Number(summary?.activeRequests || summary?.activeCompressRequests || 0);
   totalEl.textContent = total;
   successRateEl.textContent = `${successRate}%`;
   latencyEl.textContent = `${formatDuration(latency.avg || 0)} / ${formatDuration(latency.p95 || 0)}`;

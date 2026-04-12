@@ -58,12 +58,14 @@ app.use(cors({
 const runtimeMetrics = {
   startedAt: Date.now(),
   totals: {
+    totalRequests: 0,
     compressRequests: 0,
     success: 0,
     failed: 0,
     bytesIn: 0,
     bytesOut: 0,
   },
+  activeRequests: 0,
   activeCompressRequests: 0,
   recent: [],
 };
@@ -94,6 +96,7 @@ function summarizeMetrics() {
   return {
     startedAt: runtimeMetrics.startedAt,
     uptimeMs: Date.now() - runtimeMetrics.startedAt,
+    activeRequests: runtimeMetrics.activeRequests,
     activeCompressRequests: runtimeMetrics.activeCompressRequests,
     totals: runtimeMetrics.totals,
     latencyMs: {
@@ -122,13 +125,45 @@ function requireDashboardAccess(req, res, next) {
   next();
 }
 
-function compressionMetricsMiddleware(req, res, next) {
+function getUploadBytesFromRequest(req) {
+  if (req?.file?.size && Number.isFinite(req.file.size)) {
+    return Number(req.file.size);
+  }
+
+  if (Array.isArray(req?.files)) {
+    return req.files.reduce((sum, file) => {
+      const size = Number(file?.size || 0);
+      return Number.isFinite(size) && size > 0 ? sum + size : sum;
+    }, 0);
+  }
+
+  if (req?.files && typeof req.files === 'object') {
+    return Object.values(req.files).flat().reduce((sum, file) => {
+      const size = Number(file?.size || 0);
+      return Number.isFinite(size) && size > 0 ? sum + size : sum;
+    }, 0);
+  }
+
+  const contentLength = Number(req?.headers?.['content-length'] || 0);
+  return Number.isFinite(contentLength) && contentLength > 0 ? contentLength : 0;
+}
+
+function requestMetricsMiddleware(req, res, next) {
   const startedAt = Date.now();
-  runtimeMetrics.activeCompressRequests += 1;
+  runtimeMetrics.activeRequests += 1;
+
+  if (req.path === '/api/compress') {
+    runtimeMetrics.activeCompressRequests += 1;
+  }
 
   res.on('finish', () => {
-    runtimeMetrics.activeCompressRequests = Math.max(0, runtimeMetrics.activeCompressRequests - 1);
-    runtimeMetrics.totals.compressRequests += 1;
+    runtimeMetrics.activeRequests = Math.max(0, runtimeMetrics.activeRequests - 1);
+    if (req.path === '/api/compress') {
+      runtimeMetrics.activeCompressRequests = Math.max(0, runtimeMetrics.activeCompressRequests - 1);
+      runtimeMetrics.totals.compressRequests += 1;
+    }
+
+    runtimeMetrics.totals.totalRequests += 1;
 
     const isSuccess = res.statusCode >= 200 && res.statusCode < 400;
     if (isSuccess) {
@@ -137,25 +172,61 @@ function compressionMetricsMiddleware(req, res, next) {
       runtimeMetrics.totals.failed += 1;
     }
 
-    const meta = res.locals?.compressionMeta || {};
-    const inputSize = Number(meta.originalSize || 0);
-    const outputSize = Number(meta.compressedSize || 0);
+    const compressionMeta = res.locals?.compressionMeta || {};
+    const requestMeta = res.locals?.requestMetricsMeta || {};
+    const mergedMeta = {
+      ...compressionMeta,
+      ...requestMeta,
+    };
+
+    const inputSize = Number(
+      mergedMeta.inputSize
+      || mergedMeta.originalSize
+      || getUploadBytesFromRequest(req)
+      || 0,
+    );
+    const outputSizeHeader = Number(res.getHeader('content-length') || 0);
+    const outputSize = Number(
+      mergedMeta.outputSize
+      || mergedMeta.compressedSize
+      || outputSizeHeader
+      || 0,
+    );
 
     if (inputSize > 0) runtimeMetrics.totals.bytesIn += inputSize;
     if (outputSize > 0) runtimeMetrics.totals.bytesOut += outputSize;
+
+    const requestPath = typeof req.originalUrl === 'string' ? req.originalUrl.split('?')[0] : req.path;
+    const operation = mergedMeta.operation || (
+      requestPath === '/api/compress'
+        ? 'compress'
+        : requestPath === '/api/merge'
+          ? 'merge'
+          : requestPath === '/api/split'
+            ? 'split'
+            : 'request'
+    );
+
+    const savedPercentCandidate = Number(mergedMeta.savedPercent);
+    const savedPercent = Number.isFinite(savedPercentCandidate)
+      ? savedPercentCandidate
+      : (inputSize > 0 && outputSize >= 0 ? ((inputSize - outputSize) / inputSize) * 100 : Number.NaN);
 
     pushRecentMetric({
       at: Date.now(),
       requestId: req.requestId || 'unknown',
       statusCode: res.statusCode,
       durationMs: Date.now() - startedAt,
-      level: meta.level || normalizeCompressionLevel(req.body?.level),
-      method: meta.method || 'unknown',
-      strategy: meta.strategy || 'unknown',
-      selectedFrom: meta.selectedFrom || 'unknown',
+      route: requestPath,
+      httpMethod: req.method,
+      operation,
+      level: mergedMeta.level || (requestPath === '/api/compress' ? normalizeCompressionLevel(req.body?.level) : '-'),
+      method: mergedMeta.method || req.method,
+      strategy: mergedMeta.strategy || '-',
+      selectedFrom: mergedMeta.selectedFrom || '-',
       originalSize: inputSize,
       compressedSize: outputSize,
-      savedPercent: Number(meta.savedPercent || 0),
+      savedPercent,
       remoteAddress: req.ip || 'unknown',
     });
   });
@@ -196,6 +267,8 @@ app.use(async (req, _res, next) => {
     next(err);
   }
 });
+
+app.use(requestMetricsMiddleware);
 
 const uploadStorage = multer.diskStorage({
   destination: (req, _file, cb) => {
@@ -675,6 +748,7 @@ app.post('/api/merge', uploadMemory.array('pdfs', 20), async (req, res) => {
   }
 
   try {
+    const inputSize = files.reduce((sum, file) => sum + Number(file?.size || 0), 0);
     const mergedDoc = await PDFDocument.create();
     let totalPages = 0;
 
@@ -692,12 +766,23 @@ app.post('/api/merge', uploadMemory.array('pdfs', 20), async (req, res) => {
       updateFieldAppearances: false,
       addDefaultPage: false,
     });
+    const outputBuffer = Buffer.from(bytes);
+
+    res.locals.requestMetricsMeta = {
+      operation: 'merge',
+      method: 'pdf-lib-merge',
+      strategy: 'ordered-append',
+      level: '-',
+      inputSize,
+      outputSize: outputBuffer.length,
+      savedPercent: Number.NaN,
+    };
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="merged.pdf"');
     res.setHeader('X-Merged-Files', String(files.length));
     res.setHeader('X-Total-Pages', String(totalPages));
-    res.send(Buffer.from(bytes));
+    res.send(outputBuffer);
   } catch (error) {
     console.error('Merge error:', error);
     res.status(500).json({ error: 'Gagal menggabungkan PDF.' });
@@ -764,6 +849,16 @@ app.post('/api/split', uploadMemory.single('pdf'), async (req, res) => {
       compressionOptions: { level: 6 },
     });
 
+    res.locals.requestMetricsMeta = {
+      operation: 'split',
+      method: 'pdf-lib-split+zip',
+      strategy: mode === 'each' ? 'split-each-page' : 'split-ranges',
+      level: '-',
+      inputSize: Number(req.file?.size || 0),
+      outputSize: zipBuffer.length,
+      savedPercent: Number.NaN,
+    };
+
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${baseName}_split.zip"`);
     res.setHeader('X-Split-Mode', mode);
@@ -776,7 +871,7 @@ app.post('/api/split', uploadMemory.single('pdf'), async (req, res) => {
   }
 });
 
-app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upload.single('pdf'), async (req, res) => {
+app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req, res) => {
   if (!req.file) {
     res.status(400).json({ error: 'File PDF tidak ditemukan.' });
     return;
@@ -922,10 +1017,13 @@ app.post('/api/compress', compressionMetricsMiddleware, compressRateLimiter, upl
     const savedPercent = originalSize > 0 ? ((savedBytes / originalSize) * 100).toFixed(2) : '0.00';
 
     res.locals.compressionMeta = {
+      operation: 'compress',
       level,
       method,
       strategy,
       selectedFrom,
+      inputSize: originalSize,
+      outputSize: compressedSize,
       originalSize,
       compressedSize,
       savedPercent,
