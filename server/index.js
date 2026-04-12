@@ -397,6 +397,8 @@ function cloneSettings(settings, overrides = {}) {
 
 let cachedGhostscriptCommand;
 let ghostscriptLookupPromise = null;
+let cachedQpdfCommand;
+let qpdfLookupPromise = null;
 
 function getCompressionSettings(level) {
   // Distinct profiles so each level produces meaningful trade-offs.
@@ -606,6 +608,28 @@ async function findGhostscriptCommand() {
   return null;
 }
 
+async function findQpdfCommand() {
+  const candidates = process.platform === 'win32'
+    ? ['qpdf']
+    : ['qpdf'];
+
+  for (const cmd of candidates) {
+    if (await commandExists(cmd)) return cmd;
+  }
+
+  if (process.platform === 'win32') {
+    try {
+      const qpdfBin = 'C:\\Program Files\\qpdf\\bin\\qpdf.exe';
+      await fs.access(qpdfBin);
+      return qpdfBin;
+    } catch {
+      // File doesn't exist, continue
+    }
+  }
+
+  return null;
+}
+
 async function getGhostscriptCommand() {
   if (cachedGhostscriptCommand !== undefined) {
     return cachedGhostscriptCommand;
@@ -625,6 +649,27 @@ async function getGhostscriptCommand() {
     });
 
   return ghostscriptLookupPromise;
+}
+
+async function getQpdfCommand() {
+  if (cachedQpdfCommand !== undefined) {
+    return cachedQpdfCommand;
+  }
+
+  if (qpdfLookupPromise) {
+    return qpdfLookupPromise;
+  }
+
+  qpdfLookupPromise = findQpdfCommand()
+    .then((cmd) => {
+      cachedQpdfCommand = cmd;
+      return cmd;
+    })
+    .finally(() => {
+      qpdfLookupPromise = null;
+    });
+
+  return qpdfLookupPromise;
 }
 
 function runGhostscript(inputPath, outputPath, settings, gsCommand) {
@@ -648,6 +693,47 @@ function runGhostscript(inputPath, outputPath, settings, gsCommand) {
 
     proc.on('error', (err) => reject(err));
   });
+}
+
+function runQpdfOptimize(inputPath, outputPath, qpdfCommand) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '--stream-data=compress',
+      '--object-streams=generate',
+      '--replace-input',
+      inputPath,
+    ];
+
+    const proc = spawn(qpdfCommand, args, {
+      windowsHide: true,
+      cwd: path.dirname(inputPath),
+    });
+    let stderr = '';
+
+    proc.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(stderr || 'qpdf gagal memproses file.'));
+      }
+    });
+
+    proc.on('error', (err) => reject(err));
+  });
+}
+
+async function optimizeBufferWithQpdf(buffer, requestTempDir, qpdfCommand, fileTag) {
+  if (!qpdfCommand || !buffer || !buffer.length) return null;
+
+  const safeTag = String(fileTag || 'qpdf').replace(/[^a-z0-9_-]/gi, '_');
+  const workPath = path.join(requestTempDir || os.tmpdir(), `${safeTag}.pdf`);
+  await fs.writeFile(workPath, buffer);
+  await runQpdfOptimize(workPath, workPath, qpdfCommand);
+  return fs.readFile(workPath);
 }
 
 async function fallbackCompressWithPdfLib(pdfBytes) {
@@ -701,12 +787,16 @@ app.get('/', (req, res) => {
 
 app.get('/api/health', async (_req, res) => {
   const gsCommand = await getGhostscriptCommand();
+  const qpdfCommand = await getQpdfCommand();
   console.log('[Health Check] Found Ghostscript:', gsCommand);
+  console.log('[Health Check] Found qpdf:', qpdfCommand);
   res.json({
     ok: true,
     service: 'pdf-compress-service',
     ghostscriptAvailable: Boolean(gsCommand),
     ghostscriptCommand: gsCommand,
+    qpdfAvailable: Boolean(qpdfCommand),
+    qpdfCommand,
     secondPassOptimizerEnabled: ENABLE_SECOND_PASS_OPTIMIZER,
     dashboardEnabled: true,
     dashboardProtected: Boolean(DASHBOARD_TOKEN),
@@ -896,6 +986,7 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
 
   try {
     const gsCommand = await getGhostscriptCommand();
+    const qpdfCommand = await getQpdfCommand();
     let outputBuffer;
     let method = 'pdf-lib-fallback';
     let strategy = 'single-pass';
@@ -961,6 +1052,21 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
       method = 'pdf-lib-fallback-no-gs';
       strategy = 'lossless-fallback-no-gs';
       selectedFrom = 'pdf-lib-fallback-no-gs';
+    }
+
+    if (qpdfCommand) {
+      try {
+        const qpdfOptimized = await optimizeBufferWithQpdf(outputBuffer, req.requestTempDir, qpdfCommand, `${req.requestId || 'req'}-${level}-qpdf`);
+
+        if (qpdfOptimized?.length && qpdfOptimized.length < outputBuffer.length) {
+          outputBuffer = qpdfOptimized;
+          method = `${method}|qpdf-opt`;
+          strategy = `${strategy}+qpdf-structure`;
+          selectedFrom = `qpdf-after-${selectedFrom}`;
+        }
+      } catch (qpdfErr) {
+        console.warn('qpdf optimizer gagal:', qpdfErr?.message || qpdfErr);
+      }
     }
 
     if (ENABLE_SECOND_PASS_OPTIMIZER && method.startsWith('ghostscript')) {
