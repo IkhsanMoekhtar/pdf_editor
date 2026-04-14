@@ -763,6 +763,23 @@
   overflow-wrap: anywhere;
 }
 
+.batch-file-name-btn {
+  border: none;
+  background: transparent;
+  font-size: 0.92rem;
+  color: #1f2937;
+  overflow-wrap: anywhere;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.batch-file-name-btn.active {
+  color: #991b1b;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .batch-file-actions {
   display: flex;
   align-items: center;
@@ -857,6 +874,47 @@
 .batch-field select:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+.batch-preview-box {
+  border: 1px solid #cfe0ff;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.batch-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 0.82rem;
+}
+
+.batch-preview-header span {
+  color: #64748b;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.batch-pdf-preview {
+  width: 100%;
+  height: 320px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.batch-preview-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
 }
 
 /* --- DESAIN AREA KOSONG (KLIK UNTUK UPLOAD) --- */
@@ -1323,6 +1381,10 @@
   .batch-file-item {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .batch-pdf-preview {
+    height: 250px;
   }
 
   .viewer-body {

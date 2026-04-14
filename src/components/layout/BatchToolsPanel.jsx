@@ -1,4 +1,24 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+
+function useObjectUrl(file) {
+  const [url, setUrl] = useState('');
+
+  useEffect(() => {
+    if (!file) {
+      setUrl('');
+      return undefined;
+    }
+
+    const nextUrl = URL.createObjectURL(file);
+    setUrl(nextUrl);
+
+    return () => {
+      URL.revokeObjectURL(nextUrl);
+    };
+  }, [file]);
+
+  return url;
+}
 
 export default function BatchToolsPanel({
   mode,
@@ -33,6 +53,18 @@ export default function BatchToolsPanel({
   const mergeInputRef = useRef(null);
   const splitInputRef = useRef(null);
   const compressInputRef = useRef(null);
+  const [mergePreviewIndex, setMergePreviewIndex] = useState(0);
+
+  useEffect(() => {
+    if (mergeFiles.length === 0) {
+      setMergePreviewIndex(0);
+      return;
+    }
+
+    if (mergePreviewIndex >= mergeFiles.length) {
+      setMergePreviewIndex(mergeFiles.length - 1);
+    }
+  }, [mergeFiles, mergePreviewIndex]);
 
   const pickMergeFiles = () => {
     mergeInputRef.current?.click();
@@ -50,6 +82,10 @@ export default function BatchToolsPanel({
   const isSplitMode = mode === 'split';
   const isCompressMode = mode === 'compress';
   const isGhostscriptUnavailable = backendStatus?.checked && !backendStatus?.ghostscriptAvailable;
+  const mergePreviewFile = mergeFiles[mergePreviewIndex] || null;
+  const mergePreviewUrl = useObjectUrl(mergePreviewFile);
+  const splitPreviewUrl = useObjectUrl(splitFile);
+  const compressPreviewUrl = useObjectUrl(compressFile);
 
   const formatBytes = (bytes) => {
     if (!Number.isFinite(bytes) || bytes < 0) return '-';
@@ -110,7 +146,14 @@ export default function BatchToolsPanel({
               ) : (
                 mergeFiles.map((file, index) => (
                   <div className="batch-file-item" role="listitem" key={`${file.name}-${index}-${file.size}`}>
-                    <span className="batch-file-name">{index + 1}. {file.name}</span>
+                    <button
+                      type="button"
+                      className={`batch-file-name-btn ${mergePreviewIndex === index ? 'active' : ''}`}
+                      onClick={() => setMergePreviewIndex(index)}
+                      title="Klik untuk preview"
+                    >
+                      {index + 1}. {file.name}
+                    </button>
                     <div className="batch-file-actions">
                       <button
                         className="batch-mini-btn"
@@ -136,6 +179,20 @@ export default function BatchToolsPanel({
                 ))
               )}
             </div>
+
+            {mergePreviewFile && mergePreviewUrl && (
+              <div className="batch-preview-box">
+                <div className="batch-preview-header">
+                  <strong>Preview PDF</strong>
+                  <span>{`${mergePreviewIndex + 1}. ${mergePreviewFile.name}`}</span>
+                </div>
+                <iframe
+                  className="batch-pdf-preview"
+                  src={`${mergePreviewUrl}#toolbar=0&navpanes=0`}
+                  title={`Preview ${mergePreviewFile.name}`}
+                />
+              </div>
+            )}
           </div>
         ) : isSplitMode ? (
           <div className="batch-panel-body">
@@ -185,6 +242,20 @@ export default function BatchToolsPanel({
                 ? `File dipilih: ${splitFile.name}`
                 : 'Belum ada file PDF yang dipilih.'}
             </p>
+
+            {splitFile && splitPreviewUrl && (
+              <div className="batch-preview-box">
+                <div className="batch-preview-header">
+                  <strong>Preview PDF</strong>
+                  <span>{splitFile.name}</span>
+                </div>
+                <iframe
+                  className="batch-pdf-preview"
+                  src={`${splitPreviewUrl}#toolbar=0&navpanes=0`}
+                  title={`Preview ${splitFile.name}`}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <div className="batch-panel-body">
@@ -242,6 +313,20 @@ export default function BatchToolsPanel({
 
             {compressFile && isCompressAutoFilled && (
               <p className="batch-autofill-note">File ini otomatis diambil dari PDF yang sedang terbuka di editor.</p>
+            )}
+
+            {compressFile && compressPreviewUrl && (
+              <div className="batch-preview-box">
+                <div className="batch-preview-header">
+                  <strong>Preview PDF</strong>
+                  <span>{compressFile.name}</span>
+                </div>
+                <iframe
+                  className="batch-pdf-preview"
+                  src={`${compressPreviewUrl}#toolbar=0&navpanes=0`}
+                  title={`Preview ${compressFile.name}`}
+                />
+              </div>
             )}
 
             {lastCompression && (

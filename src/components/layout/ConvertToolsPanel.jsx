@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const PRESETS = [
   { key: 'to-pdf:jpg', label: 'JPG ke PDF', direction: 'to-pdf', target: 'jpg' },
@@ -31,6 +31,26 @@ function getAcceptByPreset(direction, target) {
   return '.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 }
 
+function useObjectUrl(file) {
+  const [url, setUrl] = useState('');
+
+  useEffect(() => {
+    if (!file) {
+      setUrl('');
+      return undefined;
+    }
+
+    const nextUrl = URL.createObjectURL(file);
+    setUrl(nextUrl);
+
+    return () => {
+      URL.revokeObjectURL(nextUrl);
+    };
+  }, [file]);
+
+  return url;
+}
+
 export default function ConvertToolsPanel({
   convertPreset,
   convertFile,
@@ -58,6 +78,8 @@ export default function ConvertToolsPanel({
 
   const needsLibreOffice = activePreset.target !== 'jpg';
   const isLibreOfficeUnavailable = backendStatus?.checked && needsLibreOffice && !backendStatus?.libreOfficeAvailable;
+  const isPdfInput = Boolean(convertFile) && (convertFile.type === 'application/pdf' || /\.pdf$/i.test(convertFile.name));
+  const pdfPreviewUrl = useObjectUrl(isPdfInput ? convertFile : null);
 
   return (
     <section className="batch-panel-wrap" aria-live="polite">
@@ -131,6 +153,24 @@ export default function ConvertToolsPanel({
               ? `File dipilih: ${convertFile.name}`
               : 'Belum ada file yang dipilih.'}
           </p>
+
+          {isPdfInput && pdfPreviewUrl && (
+            <div className="batch-preview-box">
+              <div className="batch-preview-header">
+                <strong>Preview PDF</strong>
+                <span>{convertFile.name}</span>
+              </div>
+              <iframe
+                className="batch-pdf-preview"
+                src={`${pdfPreviewUrl}#toolbar=0&navpanes=0`}
+                title={`Preview ${convertFile.name}`}
+              />
+            </div>
+          )}
+
+          {convertFile && !isPdfInput && (
+            <p className="batch-preview-hint">Preview hanya ditampilkan untuk input PDF.</p>
+          )}
 
           {isLibreOfficeUnavailable && (
             <p className="convert-warning-note">
