@@ -756,19 +756,26 @@ async function getLibreOfficeCommand() {
   return libreOfficeLookupPromise;
 }
 
-function runLibreOfficeConvert(inputPath, outputDir, outputFilter, libreOfficeCommand) {
+function runLibreOfficeConvert(inputPath, outputDir, outputFilter, libreOfficeCommand, inputFilter) {
   return new Promise((resolve, reject) => {
     const args = [
       '--headless',
       '--nologo',
       '--nolockcheck',
       '--norestore',
+    ];
+
+    if (inputFilter) {
+      args.push(`--infilter=${inputFilter}`);
+    }
+
+    args.push(
       '--convert-to',
       outputFilter,
       '--outdir',
       outputDir,
       inputPath,
-    ];
+    );
 
     const proc = spawn(libreOfficeCommand, args, { windowsHide: true });
     let stderr = '';
@@ -1229,7 +1236,7 @@ app.post('/api/convert', uploadConvert.single('file'), async (req, res) => {
           return;
         }
 
-        await runLibreOfficeConvert(inputPath, req.requestTempDir, 'pdf', libreOfficeCommand);
+        await runLibreOfficeConvert(inputPath, req.requestTempDir, 'pdf', libreOfficeCommand, 'writer_pdf_import');
         const convertedPath = await findFileByExtension(req.requestTempDir, '.pdf');
         if (!convertedPath) {
           throw new Error('Hasil konversi PDF tidak ditemukan.');
@@ -1296,7 +1303,24 @@ app.post('/api/convert', uploadConvert.single('file'), async (req, res) => {
         }
 
         const officeFormat = OFFICE_TO_FORMAT[target];
-        await runLibreOfficeConvert(inputPath, req.requestTempDir, officeFormat, libreOfficeCommand);
+        const outputFilterByTarget = {
+          word: 'docx:Office Open XML Text',
+          ppt: 'pptx:Impress Office Open XML',
+          excel: 'xlsx:Calc Office Open XML',
+        };
+        const inputFilterByTarget = {
+          word: 'writer_pdf_import',
+          ppt: 'impress_pdf_import',
+          excel: 'calc_pdf_addstream_import',
+        };
+
+        await runLibreOfficeConvert(
+          inputPath,
+          req.requestTempDir,
+          outputFilterByTarget[target],
+          libreOfficeCommand,
+          inputFilterByTarget[target],
+        );
         const convertedPath = await findFileByExtension(req.requestTempDir, `.${officeFormat}`);
         if (!convertedPath) {
           throw new Error(`Hasil konversi ${officeFormat.toUpperCase()} tidak ditemukan.`);
