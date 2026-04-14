@@ -1261,7 +1261,7 @@ app.post('/api/convert', uploadConvert.single('file'), async (req, res) => {
           return;
         }
 
-        await runLibreOfficeConvert(inputPath, req.requestTempDir, 'pdf', libreOfficeCommand, 'writer_pdf_import');
+        await runLibreOfficeConvert(inputPath, req.requestTempDir, 'pdf', libreOfficeCommand);
         const convertedPath = await findFileByExtension(req.requestTempDir, '.pdf');
         if (!convertedPath) {
           throw new Error('Hasil konversi PDF tidak ditemukan.');
