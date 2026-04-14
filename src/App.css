@@ -907,6 +907,47 @@
   background: #f8fafc;
 }
 
+.batch-image-preview {
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.batch-doc-preview {
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 10px;
+}
+
+.batch-doc-preview-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.batch-doc-preview-meta {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.batch-doc-preview-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #334155;
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+
+.batch-doc-preview-list li + li {
+  margin-top: 4px;
+}
+
 .batch-preview-hint {
   margin: 0;
   font-size: 0.82rem;
@@ -1385,6 +1426,10 @@
 
   .batch-pdf-preview {
     height: 250px;
+  }
+
+  .batch-image-preview {
+    max-height: 250px;
   }
 
   .viewer-body {
