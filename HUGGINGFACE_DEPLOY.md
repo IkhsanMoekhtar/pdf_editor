@@ -1,15 +1,33 @@
 # Hugging Face Deploy Runbook (Backend)
 
-Dokumen ini khusus untuk deploy backend `server/index.js` ke Hugging Face Spaces (Docker).
+Dokumen ini khusus untuk deploy backend `server/index.js` ke Hugging Face Spaces (Docker) sesuai kondisi fitur terbaru.
 
 ## 1. Prasyarat
 
 - Akun Hugging Face aktif.
 - Sudah membuat Space baru dengan SDK: `Docker`.
-- Nama Space contoh: `pdf-compress-backend`.
-- URL Space contoh: `https://<username>-pdf-compress-backend.hf.space`.
+- Nama Space contoh: `pdf-backend`.
+- URL Space contoh: `https://<username>-pdf-backend.hf.space`.
 
-## 2. Variables yang Disarankan (Space Settings -> Variables)
+## 2. Fitur Backend yang Dideploy
+
+Backend yang masuk ke Space mencakup endpoint berikut:
+
+- `GET /api/health`
+- `POST /api/compress`
+- `POST /api/merge`
+- `POST /api/split`
+- `POST /api/convert`
+- `GET /api/dashboard/metrics`
+
+Engine runtime yang dipakai di Space:
+
+- Ghostscript (compression + PDF to JPG)
+- qpdf (optimizer tambahan)
+- LibreOffice headless (Office <-> PDF)
+- pdf-lib (fallback dan operasi PDF)
+
+## 3. Variables yang Disarankan (Space Settings -> Variables)
 
 Gunakan nilai ini sebagai baseline awal:
 
@@ -29,16 +47,18 @@ Catatan:
 - `PORT` tidak perlu diisi manual karena `Dockerfile` sudah `ENV PORT=7860`.
 - Tambahkan semua origin frontend yang valid ke `CORS_ORIGINS` (pisahkan dengan koma).
 
-## 3. Command Push ke Space (PowerShell)
+## 4. Command Push ke Space (PowerShell)
 
 Ganti placeholder berikut:
 - `<HF_USERNAME>`
 - `<SPACE_NAME>`
 
+### Opsi A: Push langsung branch utama
+
 ```powershell
 # dari root project
 
-git add server/index.js src/App.jsx package.json package-lock.json eslint.config.js README.md .env.example Dockerfile .dockerignore src/components/pdf/PdfViewer.jsx
+git add .
 
 git commit -m "prepare backend for hugging face deploy"
 
@@ -54,7 +74,19 @@ git remote set-url hf https://huggingface.co/spaces/<HF_USERNAME>/<SPACE_NAME>
 git push hf main
 ```
 
-## 4. Verifikasi Setelah Deploy
+### Opsi B (Direkomendasikan): backend-only push dari branch terpisah
+
+Jika repo utama berisi frontend + backend, gunakan branch backend-only agar isi Space tetap minimal:
+
+```powershell
+git fetch huggingface
+git checkout -B hf-backend-only huggingface/main
+git cherry-pick <commit-backend-yang-ingin-dideploy>
+git push huggingface HEAD:main
+git checkout main
+```
+
+## 5. Verifikasi Setelah Deploy
 
 Jalankan cek berikut setelah status Space `Running`:
 
@@ -67,6 +99,9 @@ GET https://<HF_USERNAME>-<SPACE_NAME>.hf.space/api/health
 Ekspektasi minimal:
 - `ok: true`
 - `service: "pdf-compress-service"`
+- `ghostscriptAvailable: true`
+- `qpdfAvailable: true`
+- `libreOfficeAvailable: true`
 
 2. Compress check:
 - Kirim `POST /api/compress` dengan form-data:
@@ -78,7 +113,24 @@ Ekspektasi header response:
 - `X-Processing-Time-Ms`
 - `X-Saved-Percent`
 
-3. Dashboard check:
+3. Merge check:
+- Kirim `POST /api/merge` dengan minimal 2 file PDF (`pdfs[]`).
+- Ekspektasi response berupa file PDF.
+
+4. Split check:
+- Kirim `POST /api/split`:
+  - `pdf` (file PDF)
+  - `mode` = `each` atau `ranges`
+  - `ranges` (jika `mode=ranges`)
+- Ekspektasi response berupa ZIP.
+
+5. Convert check:
+- Kirim `POST /api/convert` dengan kombinasi valid:
+  - `direction=to-pdf` + `target=jpg|word|ppt|excel`
+  - `direction=from-pdf` + `target=jpg|word|ppt|excel`
+- Ekspektasi response file sesuai target.
+
+6. Dashboard check:
 
 ```text
 GET https://<HF_USERNAME>-<SPACE_NAME>.hf.space/dashboard
@@ -97,7 +149,7 @@ GET /api/dashboard/metrics
 GET /api/dashboard/metrics?compact=1
 ```
 
-## 5. Hubungkan Frontend ke Backend Space
+## 6. Hubungkan Frontend ke Backend Space
 
 Di environment frontend, isi:
 
@@ -105,7 +157,13 @@ Di environment frontend, isi:
 VITE_API_BASE_URL=https://<HF_USERNAME>-<SPACE_NAME>.hf.space
 ```
 
-## 6. Troubleshooting Cepat
+Jika Space private/gated, tambahkan token:
+
+```env
+VITE_HF_TOKEN=<hf_token_anda>
+```
+
+## 7. Troubleshooting Cepat
 
 - 403 CORS:
   - Pastikan domain frontend benar di `CORS_ORIGINS`.
@@ -115,3 +173,7 @@ VITE_API_BASE_URL=https://<HF_USERNAME>-<SPACE_NAME>.hf.space
   - Naikkan `MAX_UPLOAD_MB` sesuai kebutuhan.
 - Kompresi lambat:
   - Coba `level=fast`, cek ukuran file input, dan lihat `X-Processing-Time-Ms`.
+- Konversi Office gagal:
+  - Pastikan health menunjukkan `libreOfficeAvailable: true`.
+- PDF ke JPG gagal:
+  - Pastikan health menunjukkan `ghostscriptAvailable: true`.
