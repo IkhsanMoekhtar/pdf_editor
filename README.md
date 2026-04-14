@@ -1,11 +1,26 @@
 
-# PDF Editor (React + Vite + Node)
+# PDF Editor Suite (React + Vite + Node)
 
-Project ini sekarang memiliki:
-- Frontend React + Vite untuk editing PDF.
-- Backend Node.js untuk fitur kompres PDF di endpoint `/api/compress`.
+Suite ini sekarang mencakup fitur lengkap:
 
-## Menjalankan Project
+- Edit PDF (teks, coretan, highlight, rotasi).
+- Gabung PDF.
+- Pisah PDF (per halaman atau rentang halaman).
+- Kompres PDF (fast, lossless, balanced, aggressive).
+- Konversi dokumen:
+  - Ke PDF: JPG/PNG, WORD, PPT, EXCEL.
+  - Dari PDF: JPG, WORD, PPT, EXCEL.
+- Dashboard backend untuk observability request.
+
+## Stack
+
+- Frontend: React + Vite.
+- Backend: Express.
+- PDF engine: pdf-lib.
+- Compression engine: Ghostscript + qpdf + fallback pdf-lib.
+- Conversion engine: LibreOffice (Office <-> PDF) + Ghostscript (PDF -> JPG) + pdf-lib (image -> PDF).
+
+## Menjalankan Lokal
 
 Install dependency:
 
@@ -19,145 +34,133 @@ Jalankan frontend + backend sekaligus:
 npm run dev:full
 ```
 
-Atau jalankan terpisah:
+Atau terpisah:
 
 ```bash
 npm run server
 npm run dev
 ```
 
-## Kompres PDF (Node Backend)
-
-Fitur `KOMPRES PDF` dari sidebar akan mengirim file ke backend Node:
-- Endpoint: `POST /api/compress`
-- Form-data:
-	- `pdf`: file PDF
-	- `level`: `low` | `medium` | `high`
-
-### Kualitas Kompresi
-
-- Jika Ghostscript terpasang di sistem, backend otomatis menggunakannya untuk kompresi lebih kuat.
-- Jika Ghostscript belum ada, backend tetap berjalan dengan fallback kompresi berbasis `pdf-lib`.
-
-## Middleware Production Yang Digunakan
-
-Backend saat ini memakai middleware berikut agar aman dan stabil saat deploy:
-- `helmet`: menambahkan security headers standar.
-- `cors`: membatasi origin frontend yang diizinkan.
-- `express-rate-limit`: membatasi spam request ke `/api/compress`.
-- `morgan`: logging request untuk observability.
-- `multer` file filter + size limit: menolak non-PDF dan file terlalu besar.
-
-## Environment Variables
-
-Salin `.env.example` sesuai kebutuhan environment Anda.
-
-Backend:
-- `PORT`: port server API (default `8787`).
-- `MAX_UPLOAD_MB`: batas upload PDF dalam MB (default `200`).
-- `TRUST_PROXY`: aktifkan mode proxy-aware IP (`1` untuk platform seperti Hugging Face).
-- `CORS_ORIGINS`: daftar origin dipisahkan koma.
-- `RATE_LIMIT_WINDOW_MS`: jendela rate limit dalam ms.
-- `RATE_LIMIT_MAX`: maksimum request dalam jendela rate limit.
-
-Frontend:
-- `VITE_API_BASE_URL`: URL backend production.
-	- Kosongkan di local dev agar tetap pakai Vite proxy `/api -> localhost:8787`.
-	- Isi saat production, contoh `https://nama-space.hf.space`.
-
-## Build Production
+Build frontend:
 
 ```bash
 npm run build
 ```
 
-## Deploy Backend ke Hugging Face (Docker Space)
+## API Endpoint
 
-Ikuti langkah ini untuk deploy **backend Express** dari project ini ke Hugging Face.
+- GET /api/health
+- POST /api/compress
+- POST /api/merge
+- POST /api/split
+- POST /api/convert
+- GET /api/dashboard/metrics
 
-### 1. Siapkan konfigurasi sebelum deploy
+## Detail Fitur
 
-1. Pastikan backend lokal berjalan:
+### 1. Kompres PDF
 
-```bash
-npm run server
-```
+Request:
+- form-data `pdf`: file PDF
+- form-data `level`: fast | lossless | balanced | aggressive
 
-2. Cek endpoint health di browser atau curl:
+Response header penting:
+- X-Compression-Method
+- X-Compression-Level
+- X-Compression-Strategy
+- X-Saved-Percent
+- X-Processing-Time-Ms
 
-```bash
-http://localhost:8787/api/health
-```
+### 2. Gabung PDF
 
-3. Buat daftar origin frontend production Anda untuk CORS.
+Request:
+- form-data `pdfs`: banyak file PDF
 
-### 2. Buat Space baru
+Response:
+- file PDF hasil gabung
 
-1. Buka Hugging Face -> `New Space`.
-2. Pilih `Docker` sebagai SDK.
-3. Pilih visibilitas (`Private` / `Public`).
+### 3. Pisah PDF
 
-### 3. Upload source ke Space
+Request:
+- form-data `pdf`: file PDF
+- form-data `mode`: each | ranges
+- form-data `ranges`: contoh 1-3,5,8-10 (wajib jika mode=ranges)
 
-Pastikan file berikut ikut ke repository Space:
-- `Dockerfile`
-- `.dockerignore`
-- `package.json`
-- `package-lock.json`
-- `server/`
+Response:
+- ZIP berisi potongan PDF
 
-### 4. Atur Variables di Hugging Face Space
+### 4. Konversi
 
-Set variable ini di menu Settings -> Variables:
+Request:
+- form-data `file`: file input
+- form-data `direction`: to-pdf | from-pdf
+- form-data `target`: jpg | word | ppt | excel
 
-- `MAX_UPLOAD_MB=200`
-- `TRUST_PROXY=1`
-- `CORS_ORIGINS=https://frontend-anda.com,http://localhost:5173`
-- `RATE_LIMIT_WINDOW_MS=60000`
-- `RATE_LIMIT_MAX=20`
+Contoh pasangan valid:
+- to-pdf + jpg + file JPG/PNG
+- to-pdf + word + file DOC/DOCX
+- to-pdf + ppt + file PPT/PPTX
+- to-pdf + excel + file XLS/XLSX
+- from-pdf + jpg + file PDF
+- from-pdf + word + file PDF
+- from-pdf + ppt + file PDF
+- from-pdf + excel + file PDF
 
 Catatan:
-- `PORT` tidak wajib diisi manual karena Dockerfile sudah default ke `7860`.
-- Jika frontend Anda di domain lain, wajib masuk ke `CORS_ORIGINS`.
+- Jika file input tidak sesuai pasangan target, API mengembalikan 400.
+- Jika engine runtime tidak tersedia, API mengembalikan 503.
 
-### 5. Tunggu build selesai
+## Environment Variables
 
-Hugging Face akan build image dari `Dockerfile`.
+Gunakan `.env.example` sebagai baseline.
 
-Jika sukses, backend akan aktif di URL:
+Backend:
+- PORT (default 8787)
+- MAX_UPLOAD_MB (default 200)
+- TRUST_PROXY (default 1)
+- CORS_ORIGINS (comma-separated)
+- RATE_LIMIT_WINDOW_MS (default 60000)
+- RATE_LIMIT_MAX (default 20)
+- ENABLE_SECOND_PASS_OPTIMIZER (opsional, default 0)
+- DASHBOARD_TOKEN (opsional)
+- DASHBOARD_RETENTION (default 200)
 
-```text
-https://<nama-space>.hf.space
-```
+Frontend:
+- VITE_API_BASE_URL (opsional untuk production)
+- VITE_HF_TOKEN (opsional, jika backend Space private/gated)
 
-Endpoint API:
-- `GET /api/health`
-- `POST /api/compress`
+## Deploy Backend ke Hugging Face (Docker)
 
-### 6. Hubungkan frontend ke backend Hugging Face
+Backend production dijalankan lewat Docker image dari file:
 
-Set environment frontend:
+- Dockerfile
+- server/index.js
 
-```env
-VITE_API_BASE_URL=https://<nama-space>.hf.space
-```
+Dependensi runtime di container:
 
-Karena frontend sekarang memakai `VITE_API_BASE_URL`, request akan otomatis mengarah ke backend production.
+- ghostscript
+- qpdf
+- libreoffice-core
+- libreoffice-writer
+- libreoffice-calc
+- libreoffice-impress
 
-## Checklist Pra-Deploy (Wajib Lolos)
+Langkah deploy detail ada di [HUGGINGFACE_DEPLOY.md](HUGGINGFACE_DEPLOY.md).
 
-1. `npm run lint` bersih.
-2. `npm run build` sukses.
-3. `GET /api/health` lokal sukses.
-4. Upload non-PDF ditolak (`400`).
-5. Upload melebihi limit ditolak (`413`).
-6. Burst request mengembalikan `429` (rate limit bekerja).
+## Keamanan dan Hygiene Repo
 
-## Checklist Pasca-Deploy
+File sensitif dan artefak lokal sudah di-ignore melalui .gitignore, termasuk:
 
-1. `GET https://<nama-space>.hf.space/api/health` mengembalikan `ok: true`.
-2. Kompres PDF kecil dan besar berhasil.
-3. Header response kompres tersedia:
-	- `X-Compression-Method`
-	- `X-Processing-Time-Ms`
-	- `X-Saved-Percent`
+- .env dan .env.*
+- dist
+- node_modules
+- .history
+- sertifikat/key file
+- folder test sementara (.tmp-test dan .tmp-convert-tests)
+
+## Status Fitur (April 2026)
+
+- Merge/Split/Compress: aktif.
+- Convert: aktif (termasuk Office <-> PDF).
+- Dashboard metrics: aktif.
+- Deploy GitHub + Hugging Face: sinkron.
