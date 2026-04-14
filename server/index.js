@@ -881,6 +881,31 @@ async function findAllFilesByExtension(directory, extension) {
     .map((entry) => path.join(directory, entry.name));
 }
 
+async function convertOfficeViaIntermediate({
+  inputPath,
+  requestTempDir,
+  libreOfficeCommand,
+  inputFilter,
+  intermediateExt,
+  intermediateFilter,
+  finalExt,
+  finalFilter,
+}) {
+  await runLibreOfficeConvert(inputPath, requestTempDir, `${intermediateExt}:${intermediateFilter}`, libreOfficeCommand, inputFilter);
+  const intermediatePath = await findFileByExtension(requestTempDir, `.${intermediateExt}`);
+  if (!intermediatePath) {
+    throw new Error(`Hasil konversi ${intermediateExt.toUpperCase()} tidak ditemukan.`);
+  }
+
+  await runLibreOfficeConvert(intermediatePath, requestTempDir, `${finalExt}:${finalFilter}`, libreOfficeCommand);
+  const finalPath = await findFileByExtension(requestTempDir, `.${finalExt}`);
+  if (!finalPath) {
+    throw new Error(`Hasil konversi ${finalExt.toUpperCase()} tidak ditemukan.`);
+  }
+
+  return finalPath;
+}
+
 function runGhostscript(inputPath, outputPath, settings, gsCommand) {
   return new Promise((resolve, reject) => {
     const args = buildGhostscriptArgs(settings, inputPath, outputPath);
@@ -1303,28 +1328,41 @@ app.post('/api/convert', uploadConvert.single('file'), async (req, res) => {
         }
 
         const officeFormat = OFFICE_TO_FORMAT[target];
-        const outputFilterByTarget = {
-          word: 'docx:Office Open XML Text',
-          ppt: 'pptx:Impress Office Open XML',
-          excel: 'xlsx:Calc Office Open XML',
-        };
-        const inputFilterByTarget = {
-          word: 'writer_pdf_import',
-          ppt: 'impress_pdf_import',
-          excel: 'calc_pdf_addstream_import',
+        const officeConversionPlan = {
+          word: {
+            inputFilter: 'writer_pdf_import',
+            intermediateExt: 'odt',
+            intermediateFilter: 'writer8',
+            finalExt: 'docx',
+            finalFilter: 'Office Open XML Text',
+          },
+          ppt: {
+            inputFilter: 'impress_pdf_import',
+            intermediateExt: 'odp',
+            intermediateFilter: 'impress8',
+            finalExt: 'pptx',
+            finalFilter: 'Impress Office Open XML',
+          },
+          excel: {
+            inputFilter: 'calc_pdf_addstream_import',
+            intermediateExt: 'ods',
+            intermediateFilter: 'calc8',
+            finalExt: 'xlsx',
+            finalFilter: 'Calc Office Open XML',
+          },
         };
 
-        await runLibreOfficeConvert(
+        const plan = officeConversionPlan[target];
+        const convertedPath = await convertOfficeViaIntermediate({
           inputPath,
-          req.requestTempDir,
-          outputFilterByTarget[target],
+          requestTempDir: req.requestTempDir,
           libreOfficeCommand,
-          inputFilterByTarget[target],
-        );
-        const convertedPath = await findFileByExtension(req.requestTempDir, `.${officeFormat}`);
-        if (!convertedPath) {
-          throw new Error(`Hasil konversi ${officeFormat.toUpperCase()} tidak ditemukan.`);
-        }
+          inputFilter: plan.inputFilter,
+          intermediateExt: plan.intermediateExt,
+          intermediateFilter: plan.intermediateFilter,
+          finalExt: plan.finalExt,
+          finalFilter: plan.finalFilter,
+        });
 
         outputBuffer = await fs.readFile(convertedPath);
         outputFileName = `${inputBaseName}.${officeFormat}`;
