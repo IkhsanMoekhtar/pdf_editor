@@ -1,6 +1,8 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import EmptyState from './components/layout/EmptyState';
+import BatchToolsPanel from './components/layout/BatchToolsPanel';
+import ConvertToolsPanel from './components/layout/ConvertToolsPanel';
 import './App.css';
 
 const PdfViewer = lazy(() => import('./components/pdf/PdfViewer'));
@@ -36,18 +38,31 @@ const apiFetch = (path, options = {}) => {
 
 function App() {
   const [pdfFile, setPdfFile] = useState(null);
+  const [workspaceMode, setWorkspaceMode] = useState('edit');
   const [activeTool, setActiveTool] = useState(null);
   const [drawings, setDrawings] = useState([]);
   const [rotation, setRotation] = useState(0);
   const [texts, setTexts] = useState([]);
+  const [mergeFiles, setMergeFiles] = useState([]);
+  const [splitFile, setSplitFile] = useState(null);
+  const [compressFile, setCompressFile] = useState(null);
+  const [convertFile, setConvertFile] = useState(null);
+  const [convertPreset, setConvertPreset] = useState({ direction: 'to-pdf', target: 'jpg' });
+  const [isCompressAutoFilled, setIsCompressAutoFilled] = useState(false);
+  const [splitMode, setSplitMode] = useState('each');
+  const [splitRanges, setSplitRanges] = useState('1-2,3-4');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
+  const [isSplitting, setIsSplitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isCheckingBackend, setIsCheckingBackend] = useState(true);
   const [compressLevel, setCompressLevel] = useState('balanced');
   const [compressOnSave, setCompressOnSave] = useState(false);
   const [backendStatus, setBackendStatus] = useState({ ghostscriptAvailable: false, checked: false });
   const [lastCompression, setLastCompression] = useState(null);
+  const [lastConversion, setLastConversion] = useState(null);
 
   useEffect(() => {
     const checkBackend = async () => {
@@ -60,9 +75,17 @@ function App() {
           checked: true,
           ghostscriptAvailable: Boolean(data.ghostscriptAvailable),
           ghostscriptCommand: data.ghostscriptCommand || null,
+          libreOfficeAvailable: Boolean(data.libreOfficeAvailable),
+          libreOfficeCommand: data.libreOfficeCommand || null,
         });
       } catch {
-        setBackendStatus({ checked: true, ghostscriptAvailable: false, ghostscriptCommand: null });
+        setBackendStatus({
+          checked: true,
+          ghostscriptAvailable: false,
+          ghostscriptCommand: null,
+          libreOfficeAvailable: false,
+          libreOfficeCommand: null,
+        });
       } finally {
         setIsCheckingBackend(false);
       }
@@ -82,8 +105,59 @@ function App() {
 
   const handleUpload = (file) => {
     setPdfFile(file);
+    setWorkspaceMode('edit');
+    setCompressFile(file);
+    setIsCompressAutoFilled(false);
     setLastCompression(null);
     resetViewerState();
+  };
+
+  const openMergeWorkspace = () => {
+    setWorkspaceMode('merge');
+    setActiveTool(null);
+  };
+
+  const openSplitWorkspace = () => {
+    setWorkspaceMode('split');
+    setActiveTool(null);
+  };
+
+  const openCompressWorkspace = () => {
+    setWorkspaceMode('compress');
+    if (pdfFile) {
+      setCompressFile(pdfFile);
+      setIsCompressAutoFilled(true);
+    } else {
+      setIsCompressAutoFilled(false);
+    }
+    setActiveTool(null);
+  };
+
+  const openConvertWorkspace = (preset) => {
+    const safeDirection = preset?.direction === 'from-pdf' ? 'from-pdf' : 'to-pdf';
+    const safeTarget = typeof preset?.target === 'string' ? preset.target : 'jpg';
+    setConvertPreset({ direction: safeDirection, target: safeTarget });
+    setWorkspaceMode('convert');
+    setActiveTool(null);
+    setLastConversion(null);
+  };
+
+  const getFilenameFromDisposition = (dispositionHeader, fallbackName) => {
+    if (typeof dispositionHeader !== 'string' || !dispositionHeader.trim()) {
+      return fallbackName;
+    }
+
+    const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(dispositionHeader);
+    if (utfMatch?.[1]) {
+      try {
+        return decodeURIComponent(utfMatch[1]);
+      } catch {
+        return utfMatch[1];
+      }
+    }
+
+    const plainMatch = /filename="?([^";]+)"?/i.exec(dispositionHeader);
+    return plainMatch?.[1] || fallbackName;
   };
 
   const resetViewerState = () => {
@@ -268,14 +342,250 @@ function App() {
     }
   };
 
+  const handleMergeFilesSelected = (event) => {
+    const selectedFiles = Array.from(event.target.files || []).filter((file) => file.type === 'application/pdf');
+    if (!selectedFiles.length) return;
+
+    setMergeFiles((prev) => [...prev, ...selectedFiles]);
+    event.target.value = '';
+  };
+
+  const handleSplitFileSelected = (event) => {
+    const pickedFile = event.target.files?.[0];
+    if (!pickedFile) return;
+
+    if (pickedFile.type !== 'application/pdf') {
+      alert('File harus berformat PDF.');
+      event.target.value = '';
+      return;
+    }
+
+    setSplitFile(pickedFile);
+    event.target.value = '';
+  };
+
+  const handleCompressFileSelected = (event) => {
+    const pickedFile = event.target.files?.[0];
+    if (!pickedFile) return;
+
+    if (pickedFile.type !== 'application/pdf') {
+      alert('File harus berformat PDF.');
+      event.target.value = '';
+      return;
+    }
+
+    setCompressFile(pickedFile);
+    setIsCompressAutoFilled(false);
+    event.target.value = '';
+  };
+
+  const handleConvertFileSelected = (event) => {
+    const pickedFile = event.target.files?.[0];
+    if (!pickedFile) return;
+
+    setConvertFile(pickedFile);
+    event.target.value = '';
+  };
+
+  const handleMoveMergeFile = (index, delta) => {
+    const nextIndex = index + delta;
+    if (nextIndex < 0 || nextIndex >= mergeFiles.length) return;
+
+    setMergeFiles((prev) => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[nextIndex];
+      next[nextIndex] = temp;
+      return next;
+    });
+  };
+
+  const handleMergePdf = async () => {
+    if (mergeFiles.length < 2) {
+      alert('Tambahkan minimal 2 file PDF untuk digabung.');
+      return;
+    }
+
+    if (isMerging) return;
+    setIsMerging(true);
+
+    try {
+      const formData = new FormData();
+      mergeFiles.forEach((file) => {
+        formData.append('pdfs', file, file.name);
+      });
+
+      const response = await apiFetch('/api/merge', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Gagal menggabungkan PDF.';
+        try {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // fallback default message
+        }
+        throw new Error(errorMessage);
+      }
+
+      const outputBlob = await response.blob();
+      const outputName = getFilenameFromDisposition(
+        response.headers.get('content-disposition'),
+        'merged.pdf',
+      );
+
+      downloadPdfBlob(outputBlob, outputName);
+      alert('PDF berhasil digabung.');
+    } catch (error) {
+      console.error('Merge error:', error);
+      alert(error.message || 'Terjadi kesalahan saat menggabungkan PDF.');
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  const handleSplitPdf = async () => {
+    if (!splitFile) {
+      alert('Pilih file PDF terlebih dahulu.');
+      return;
+    }
+
+    if (splitMode === 'ranges' && !splitRanges.trim()) {
+      alert('Isi range halaman terlebih dahulu. Contoh: 1-3,5,8-10');
+      return;
+    }
+
+    if (isSplitting) return;
+    setIsSplitting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('pdf', splitFile, splitFile.name);
+      formData.append('mode', splitMode);
+      if (splitMode === 'ranges') {
+        formData.append('ranges', splitRanges);
+      }
+
+      const response = await apiFetch('/api/split', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Gagal memisahkan PDF.';
+        try {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // fallback default message
+        }
+        throw new Error(errorMessage);
+      }
+
+      const zipBlob = await response.blob();
+      const zipName = getFilenameFromDisposition(
+        response.headers.get('content-disposition'),
+        'split_result.zip',
+      );
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = zipName;
+      link.click();
+      URL.revokeObjectURL(link.href);
+
+      alert('PDF berhasil dipisah. Hasil diunduh dalam format ZIP.');
+    } catch (error) {
+      console.error('Split error:', error);
+      alert(error.message || 'Terjadi kesalahan saat memisahkan PDF.');
+    } finally {
+      setIsSplitting(false);
+    }
+  };
+
+  const handleRunConversion = async () => {
+    if (!convertFile) {
+      alert('Pilih file terlebih dahulu untuk dikonversi.');
+      return;
+    }
+
+    if (isConverting) return;
+    setIsConverting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', convertFile, convertFile.name);
+      formData.append('direction', convertPreset.direction);
+      formData.append('target', convertPreset.target);
+
+      const response = await apiFetch('/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Gagal mengonversi file.';
+        try {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // fallback default message
+        }
+        throw new Error(errorMessage);
+      }
+
+      const outputBlob = await response.blob();
+      const outputName = getFilenameFromDisposition(
+        response.headers.get('content-disposition'),
+        'converted_file',
+      );
+
+      const method = response.headers.get('x-conversion-method') || '-';
+      const sourceType = response.headers.get('x-conversion-source') || '-';
+      const targetType = response.headers.get('x-conversion-target') || '-';
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(outputBlob);
+      link.download = outputName;
+      link.click();
+      URL.revokeObjectURL(link.href);
+
+      setLastConversion({
+        inputName: convertFile.name,
+        outputName,
+        sourceType,
+        targetType,
+        method,
+      });
+
+      alert(`Konversi berhasil. File hasil: ${outputName}`);
+    } catch (error) {
+      console.error('Conversion error:', error);
+      alert(error.message || 'Terjadi kesalahan saat mengonversi file.');
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
   const busyMessage = isCompressing
     ? 'Sedang mengompres PDF...'
+    : isConverting
+      ? 'Sedang mengonversi file...'
+    : isMerging
+      ? 'Sedang menggabungkan PDF...'
+      : isSplitting
+        ? 'Sedang memisahkan PDF...'
     : isSaving
       ? 'Sedang menyiapkan file PDF...'
       : isCheckingBackend
         ? 'Sedang memeriksa layanan backend...'
         : '';
-  const isGlobalBusy = isCompressing || isSaving || isCheckingBackend;
+        const isGlobalBusy = isCompressing || isConverting || isMerging || isSplitting || isSaving || isCheckingBackend;
+
+        const activeConvertKey = `${convertPreset.direction}:${convertPreset.target}`;
 
   return (
     <div className="app-container">
@@ -291,16 +601,18 @@ function App() {
         activeTool={activeTool} 
         setActiveTool={setActiveTool} 
         onSave={savePdfWithDrawings} 
-        onCompress={handleCompressPdf}
-        canCompress={Boolean(pdfFile)}
-        isCompressHighlighted={Boolean(pdfFile) && !isCompressing}
-        compressLevel={compressLevel}
-        setCompressLevel={setCompressLevel}
+        onOpenMerge={openMergeWorkspace}
+        onOpenSplit={openSplitWorkspace}
+        onOpenCompress={openCompressWorkspace}
+        onOpenConvert={openConvertWorkspace}
+        activeConvertKey={activeConvertKey}
+        workspaceMode={workspaceMode}
         compressOnSave={compressOnSave}
         setCompressOnSave={setCompressOnSave}
-        backendStatus={backendStatus}
-        lastCompression={lastCompression}
         isCompressing={isCompressing}
+        isConverting={isConverting}
+        isMerging={isMerging}
+        isSplitting={isSplitting}
         isSaving={isSaving}
         isMobileOpen={isSidebarOpen}
         onCloseMobile={() => setIsSidebarOpen(false)}
@@ -315,7 +627,57 @@ function App() {
       )}
 
       <main className="workspace">
-        {pdfFile ? (
+        {workspaceMode === 'convert' ? (
+          <ConvertToolsPanel
+            convertPreset={convertPreset}
+            convertFile={convertFile}
+            backendStatus={backendStatus}
+            lastConversion={lastConversion}
+            onSelectPreset={openConvertWorkspace}
+            onConvertFileSelected={handleConvertFileSelected}
+            onRunConvert={handleRunConversion}
+            onClearConvert={() => {
+              setConvertFile(null);
+              setLastConversion(null);
+            }}
+            onBackToEditor={() => setWorkspaceMode('edit')}
+            isConverting={isConverting}
+          />
+        ) : workspaceMode === 'merge' || workspaceMode === 'split' || workspaceMode === 'compress' ? (
+          <BatchToolsPanel
+            mode={workspaceMode}
+            mergeFiles={mergeFiles}
+            splitFile={splitFile}
+            compressFile={compressFile}
+            compressLevel={compressLevel}
+            lastCompression={lastCompression}
+            backendStatus={backendStatus}
+            isCompressAutoFilled={isCompressAutoFilled}
+            splitMode={splitMode}
+            splitRanges={splitRanges}
+            onMergeFilesSelected={handleMergeFilesSelected}
+            onSplitFileSelected={handleSplitFileSelected}
+            onCompressFileSelected={handleCompressFileSelected}
+            onRunMerge={handleMergePdf}
+            onRunSplit={handleSplitPdf}
+            onRunCompress={() => handleCompressPdf(compressLevel, compressFile)}
+            onRemoveMergeFile={(index) => setMergeFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+            onMoveMergeFile={handleMoveMergeFile}
+            onClearMerge={() => setMergeFiles([])}
+            onClearSplit={() => setSplitFile(null)}
+            onClearCompress={() => {
+              setCompressFile(null);
+              setIsCompressAutoFilled(false);
+            }}
+            onCompressLevelChange={setCompressLevel}
+            onSplitModeChange={setSplitMode}
+            onSplitRangesChange={setSplitRanges}
+            onBackToEditor={() => setWorkspaceMode('edit')}
+            isMerging={isMerging}
+            isSplitting={isSplitting}
+            isCompressing={isCompressing}
+          />
+        ) : pdfFile ? (
           <Suspense fallback={<div style={{ margin: 'auto', color: '#6b7280' }}>Memuat PDF viewer...</div>}>
             <PdfViewer 
               file={pdfFile} 

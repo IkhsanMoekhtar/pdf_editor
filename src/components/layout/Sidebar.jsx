@@ -1,23 +1,7 @@
 import React, { useState } from 'react';
 
-const compressionLevelOptions = [
-  { value: 'fast', label: '🟡 Fast (Cepat, kompresi ringan)' },
-  { value: 'lossless', label: '🔵 Lossless (Kualitas Sempurna)' },
-  { value: 'balanced', label: '🟢 Balanced (Kualitas-Ukuran Seimbang)' },
-  { value: 'aggressive', label: '🔴 Aggressive (Ukuran Minimal)' },
-];
-
-export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress, canCompress, isCompressHighlighted, compressLevel, setCompressLevel, compressOnSave, setCompressOnSave, backendStatus, lastCompression, isCompressing, isSaving, isMobileOpen, onCloseMobile }) {
+export default function Sidebar({ activeTool, setActiveTool, onSave, onOpenMerge, onOpenSplit, onOpenCompress, onOpenConvert, activeConvertKey, workspaceMode, compressOnSave, setCompressOnSave, isCompressing, isConverting, isSaving, isMerging, isSplitting, isMobileOpen, onCloseMobile }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
-  const isGhostscriptUnavailable = backendStatus?.checked && !backendStatus?.ghostscriptAvailable;
-  const savedPercentLabel = lastCompression?.savedPercent >= 0 ? 'Hemat' : 'Ukuran bertambah';
-
-  const formatBytes = (bytes) => {
-    if (!Number.isFinite(bytes) || bytes < 0) return '-';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  };
 
   const closeIfMobile = () => {
     if (typeof window !== 'undefined' && window.innerWidth <= 900) {
@@ -31,6 +15,11 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
 
   const handleToolClick = (toolName) => {
     setActiveTool(prev => prev === toolName ? null : toolName);
+  };
+
+  const openConvertPreset = (direction, target) => {
+    onOpenConvert?.({ direction, target });
+    closeIfMobile();
   };
 
   return (
@@ -47,56 +36,36 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
       </div>
       
       <nav className="sidebar-nav">
-        <button className="nav-item" onClick={closeIfMobile}>GABUNG PDF</button>
-        <button className="nav-item" onClick={closeIfMobile}>PISAH PDF</button>
         <button
-          className={`nav-item compress-btn ${isCompressHighlighted ? 'compress-btn-ready' : ''}`}
+          className={`nav-item ${workspaceMode === 'merge' ? 'active' : ''}`}
           onClick={() => {
-            if (!canCompress) return;
-            onCompress?.(compressLevel);
+            onOpenMerge?.();
             closeIfMobile();
           }}
-          disabled={isCompressing || isSaving || !canCompress}
-          title={!canCompress ? 'Upload PDF dulu agar bisa dikompres.' : ''}
+          disabled={isMerging || isSplitting || isSaving || isCompressing || isConverting}
         >
-          {isCompressing ? 'MENGOMPRES...' : 'KOMPRES PDF'}
+          GABUNG PDF
         </button>
-        <div className="compress-level-wrap">
-          <label htmlFor="compress-level" className="compress-level-label">Level Kompresi</label>
-          <select
-            id="compress-level"
-            className="compress-level-select"
-            value={compressLevel}
-            onChange={(e) => setCompressLevel?.(e.target.value)}
-            disabled={isCompressing || isSaving || isGhostscriptUnavailable}
-            title={isGhostscriptUnavailable ? 'Level dinonaktifkan karena backend sedang fallback ke pdf-lib.' : ''}
-          >
-            {compressionLevelOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-          {backendStatus?.checked && (
-            <p className={`compress-backend-status ${isGhostscriptUnavailable ? 'warning' : 'ok'}`}>
-              {backendStatus.ghostscriptAvailable
-                ? 'Mesin kompresi: Ghostscript aktif'
-                : 'Mesin kompresi: fallback pdf-lib (hasil antar level bisa mirip)'}
-            </p>
-          )}
-          {isGhostscriptUnavailable && (
-            <div className="compress-warning-badge" role="status">
-              Profil level dinonaktifkan sampai Ghostscript aktif kembali.
-            </div>
-          )}
-          {lastCompression && (
-            <div className="compress-result-box">
-              <p>{`Terakhir: ${formatBytes(lastCompression.originalSize)} -> ${formatBytes(lastCompression.compressedSize)}`}</p>
-              <p>{`${savedPercentLabel}: ${Math.abs(lastCompression.savedPercent).toFixed(2)}%`}</p>
-              <p>{`Level: ${lastCompression.appliedLevel}`}</p>
-              <p>{`Strategi: ${lastCompression.strategy}`}</p>
-              <p>{`Metode: ${lastCompression.method}`}</p>
-            </div>
-          )}
-        </div>
+        <button
+          className={`nav-item ${workspaceMode === 'split' ? 'active' : ''}`}
+          onClick={() => {
+            onOpenSplit?.();
+            closeIfMobile();
+          }}
+          disabled={isMerging || isSplitting || isSaving || isCompressing || isConverting}
+        >
+          PISAH PDF
+        </button>
+        <button
+          className={`nav-item compress-btn ${workspaceMode === 'compress' ? 'active' : ''}`}
+          onClick={() => {
+            onOpenCompress?.();
+            closeIfMobile();
+          }}
+          disabled={isMerging || isSplitting || isSaving || isCompressing || isConverting}
+        >
+          KOMPRES PDF
+        </button>
 
         <div className={`nav-group ${expandedMenu === 'convert' ? 'expanded' : ''}`}>
           <button className="nav-item has-arrow" onClick={() => toggleMenu('convert')}>
@@ -104,16 +73,16 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
           </button>
           <div className="submenu">
             <div className="submenu-title">KE PDF</div>
-            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-jpg">J</span> JPG ke PDF</button>
-            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-word">W</span> WORD ke PDF</button>
-            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-ppt">P</span> PPT ke PDF</button>
-            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-excel">X</span> EXCEL ke PDF</button>
+            <button className={`submenu-btn ${workspaceMode === 'convert' && activeConvertKey === 'to-pdf:jpg' ? 'active' : ''}`} onClick={() => openConvertPreset('to-pdf', 'jpg')} disabled={isConverting || isMerging || isSplitting || isSaving || isCompressing}><span className="doc-icon icon-jpg">J</span> JPG ke PDF</button>
+            <button className={`submenu-btn ${workspaceMode === 'convert' && activeConvertKey === 'to-pdf:word' ? 'active' : ''}`} onClick={() => openConvertPreset('to-pdf', 'word')} disabled={isConverting || isMerging || isSplitting || isSaving || isCompressing}><span className="doc-icon icon-word">W</span> WORD ke PDF</button>
+            <button className={`submenu-btn ${workspaceMode === 'convert' && activeConvertKey === 'to-pdf:ppt' ? 'active' : ''}`} onClick={() => openConvertPreset('to-pdf', 'ppt')} disabled={isConverting || isMerging || isSplitting || isSaving || isCompressing}><span className="doc-icon icon-ppt">P</span> PPT ke PDF</button>
+            <button className={`submenu-btn ${workspaceMode === 'convert' && activeConvertKey === 'to-pdf:excel' ? 'active' : ''}`} onClick={() => openConvertPreset('to-pdf', 'excel')} disabled={isConverting || isMerging || isSplitting || isSaving || isCompressing}><span className="doc-icon icon-excel">X</span> EXCEL ke PDF</button>
             
             <div className="submenu-title" style={{ marginTop: '10px' }}>DARI PDF</div>
-            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-jpg">J</span> PDF ke JPG</button>
-            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-word">W</span> PDF ke WORD</button>
-            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-ppt">P</span> PDF ke PPT</button>
-            <button className="submenu-btn" onClick={closeIfMobile}><span className="doc-icon icon-excel">X</span> PDF ke EXCEL</button>
+            <button className={`submenu-btn ${workspaceMode === 'convert' && activeConvertKey === 'from-pdf:jpg' ? 'active' : ''}`} onClick={() => openConvertPreset('from-pdf', 'jpg')} disabled={isConverting || isMerging || isSplitting || isSaving || isCompressing}><span className="doc-icon icon-jpg">J</span> PDF ke JPG</button>
+            <button className={`submenu-btn ${workspaceMode === 'convert' && activeConvertKey === 'from-pdf:word' ? 'active' : ''}`} onClick={() => openConvertPreset('from-pdf', 'word')} disabled={isConverting || isMerging || isSplitting || isSaving || isCompressing}><span className="doc-icon icon-word">W</span> PDF ke WORD</button>
+            <button className={`submenu-btn ${workspaceMode === 'convert' && activeConvertKey === 'from-pdf:ppt' ? 'active' : ''}`} onClick={() => openConvertPreset('from-pdf', 'ppt')} disabled={isConverting || isMerging || isSplitting || isSaving || isCompressing}><span className="doc-icon icon-ppt">P</span> PDF ke PPT</button>
+            <button className={`submenu-btn ${workspaceMode === 'convert' && activeConvertKey === 'from-pdf:excel' ? 'active' : ''}`} onClick={() => openConvertPreset('from-pdf', 'excel')} disabled={isConverting || isMerging || isSplitting || isSaving || isCompressing}><span className="doc-icon icon-excel">X</span> PDF ke EXCEL</button>
           </div>
         </div>
 
@@ -145,7 +114,7 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onCompress,
           <span>Kompres saat simpan</span>
         </label>
 
-        <button className="save-btn" disabled={isCompressing || isSaving} onClick={() => { onSave(); closeIfMobile(); }}>
+        <button className="save-btn" disabled={isCompressing || isConverting || isSaving} onClick={() => { onSave(); closeIfMobile(); }}>
           {isCompressing ? '⏳ Mengompres...' : isSaving ? '⏳ Menyimpan...' : compressOnSave ? '💾 Simpan + Kompres' : '💾 Simpan File'}
         </button>
       </div>

@@ -51,6 +51,7 @@ coverage
 *.lcov
 .cache
 .tmp-test/
+.tmp-convert-tests/
 
 # OS artifacts
 Thumbs.db

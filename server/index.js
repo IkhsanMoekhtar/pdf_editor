@@ -204,6 +204,8 @@ function requestMetricsMiddleware(req, res, next) {
           ? 'merge'
           : requestPath === '/api/split'
             ? 'split'
+            : requestPath === '/api/convert'
+              ? 'convert'
             : 'request'
     );
 
@@ -244,6 +246,19 @@ const compressRateLimiter = rateLimit({
 
 const REQUEST_TMP_PREFIX = 'pdf-compress-';
 
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png']);
+const WORD_EXTENSIONS = new Set(['.doc', '.docx']);
+const PPT_EXTENSIONS = new Set(['.ppt', '.pptx']);
+const EXCEL_EXTENSIONS = new Set(['.xls', '.xlsx']);
+const OFFICE_TO_FORMAT = {
+  word: 'docx',
+  ppt: 'pptx',
+  excel: 'xlsx',
+};
+
+const PDF_TO_JPEG_QUALITY = Number(process.env.PDF_TO_JPEG_QUALITY || 88);
+const PDF_TO_JPEG_DPI = Number(process.env.PDF_TO_JPEG_DPI || 160);
+
 async function cleanupRequestTemp(tempDir) {
   if (!tempDir) return;
 
@@ -279,6 +294,16 @@ const uploadStorage = multer.diskStorage({
   },
 });
 
+const uploadConvertStorage = multer.diskStorage({
+  destination: (req, _file, cb) => {
+    cb(null, req.requestTempDir || os.tmpdir());
+  },
+  filename: (_req, file, cb) => {
+    const extension = path.extname(file.originalname || '').toLowerCase();
+    cb(null, `input${extension || ''}`);
+  },
+});
+
 const upload = multer({
   storage: uploadStorage,
   limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
@@ -305,6 +330,14 @@ const uploadMemory = multer({
     }
 
     cb(null, true);
+  },
+});
+
+const uploadConvert = multer({
+  storage: uploadConvertStorage,
+  limits: {
+    fileSize: MAX_UPLOAD_MB * 1024 * 1024,
+    files: 1,
   },
 });
 
@@ -399,6 +432,8 @@ let cachedGhostscriptCommand;
 let ghostscriptLookupPromise = null;
 let cachedQpdfCommand;
 let qpdfLookupPromise = null;
+let cachedLibreOfficeCommand;
+let libreOfficeLookupPromise = null;
 
 function getCompressionSettings(level) {
   // Distinct profiles so each level produces meaningful trade-offs.
@@ -630,6 +665,34 @@ async function findQpdfCommand() {
   return null;
 }
 
+async function findLibreOfficeCommand() {
+  const candidates = process.platform === 'win32'
+    ? ['soffice', 'soffice.com', 'soffice.exe']
+    : ['soffice', 'libreoffice'];
+
+  for (const cmd of candidates) {
+    if (await commandExists(cmd)) return cmd;
+  }
+
+  if (process.platform === 'win32') {
+    const windowsCandidates = [
+      'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+      'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+    ];
+
+    for (const filePath of windowsCandidates) {
+      try {
+        await fs.access(filePath);
+        return filePath;
+      } catch {
+        // ignore and continue checking other paths
+      }
+    }
+  }
+
+  return null;
+}
+
 async function getGhostscriptCommand() {
   if (cachedGhostscriptCommand !== undefined) {
     return cachedGhostscriptCommand;
@@ -670,6 +733,145 @@ async function getQpdfCommand() {
     });
 
   return qpdfLookupPromise;
+}
+
+async function getLibreOfficeCommand() {
+  if (cachedLibreOfficeCommand !== undefined) {
+    return cachedLibreOfficeCommand;
+  }
+
+  if (libreOfficeLookupPromise) {
+    return libreOfficeLookupPromise;
+  }
+
+  libreOfficeLookupPromise = findLibreOfficeCommand()
+    .then((cmd) => {
+      cachedLibreOfficeCommand = cmd;
+      return cmd;
+    })
+    .finally(() => {
+      libreOfficeLookupPromise = null;
+    });
+
+  return libreOfficeLookupPromise;
+}
+
+function runLibreOfficeConvert(inputPath, outputDir, outputFilter, libreOfficeCommand) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '--headless',
+      '--nologo',
+      '--nolockcheck',
+      '--norestore',
+      '--convert-to',
+      outputFilter,
+      '--outdir',
+      outputDir,
+      inputPath,
+    ];
+
+    const proc = spawn(libreOfficeCommand, args, { windowsHide: true });
+    let stderr = '';
+
+    proc.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(stderr || 'LibreOffice gagal mengonversi file.'));
+      }
+    });
+
+    proc.on('error', (err) => reject(err));
+  });
+}
+
+function runGhostscriptPdfToJpeg(inputPath, outputPattern, gsCommand) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-dNOPAUSE',
+      '-dBATCH',
+      '-dQUIET',
+      '-sDEVICE=jpeg',
+      `-r${PDF_TO_JPEG_DPI}`,
+      `-dJPEGQ=${PDF_TO_JPEG_QUALITY}`,
+      `-sOutputFile=${outputPattern}`,
+      inputPath,
+    ];
+
+    const proc = spawn(gsCommand, args, { windowsHide: true });
+    let stderr = '';
+
+    proc.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(stderr || 'Ghostscript gagal mengonversi PDF ke JPG.'));
+      }
+    });
+
+    proc.on('error', (err) => reject(err));
+  });
+}
+
+async function convertImageToPdf(inputPath) {
+  const ext = path.extname(inputPath || '').toLowerCase();
+  const imageBytes = await fs.readFile(inputPath);
+  const doc = await PDFDocument.create();
+  let image;
+
+  if (ext === '.png') {
+    image = await doc.embedPng(imageBytes);
+  } else {
+    image = await doc.embedJpg(imageBytes);
+  }
+
+  const page = doc.addPage([image.width, image.height]);
+  page.drawImage(image, {
+    x: 0,
+    y: 0,
+    width: image.width,
+    height: image.height,
+  });
+
+  const bytes = await doc.save({
+    useObjectStreams: true,
+    updateFieldAppearances: false,
+    addDefaultPage: false,
+  });
+  return Buffer.from(bytes);
+}
+
+function detectSourceCategory(filePath) {
+  const ext = path.extname(filePath || '').toLowerCase();
+  if (ext === '.pdf') return 'pdf';
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image';
+  if (WORD_EXTENSIONS.has(ext)) return 'word';
+  if (PPT_EXTENSIONS.has(ext)) return 'ppt';
+  if (EXCEL_EXTENSIONS.has(ext)) return 'excel';
+  return 'unknown';
+}
+
+async function findFileByExtension(directory, extension) {
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  const targetExt = extension.toLowerCase();
+  const match = entries.find((entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === targetExt);
+  return match ? path.join(directory, match.name) : null;
+}
+
+async function findAllFilesByExtension(directory, extension) {
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  const targetExt = extension.toLowerCase();
+  return entries
+    .filter((entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === targetExt)
+    .map((entry) => path.join(directory, entry.name));
 }
 
 function runGhostscript(inputPath, outputPath, settings, gsCommand) {
@@ -788,8 +990,10 @@ app.get('/', (req, res) => {
 app.get('/api/health', async (_req, res) => {
   const gsCommand = await getGhostscriptCommand();
   const qpdfCommand = await getQpdfCommand();
+  const libreOfficeCommand = await getLibreOfficeCommand();
   console.log('[Health Check] Found Ghostscript:', gsCommand);
   console.log('[Health Check] Found qpdf:', qpdfCommand);
+  console.log('[Health Check] Found LibreOffice:', libreOfficeCommand);
   res.json({
     ok: true,
     service: 'pdf-compress-service',
@@ -797,6 +1001,8 @@ app.get('/api/health', async (_req, res) => {
     ghostscriptCommand: gsCommand,
     qpdfAvailable: Boolean(qpdfCommand),
     qpdfCommand,
+    libreOfficeAvailable: Boolean(libreOfficeCommand),
+    libreOfficeCommand,
     secondPassOptimizerEnabled: ENABLE_SECOND_PASS_OPTIMIZER,
     dashboardEnabled: true,
     dashboardProtected: Boolean(DASHBOARD_TOKEN),
@@ -958,6 +1164,180 @@ app.post('/api/split', uploadMemory.single('pdf'), async (req, res) => {
   } catch (error) {
     console.error('Split error:', error);
     res.status(500).json({ error: error.message || 'Gagal memisah PDF.' });
+  }
+});
+
+app.post('/api/convert', uploadConvert.single('file'), async (req, res) => {
+  if (!req.file?.path) {
+    res.status(400).json({ error: 'File input tidak ditemukan.' });
+    await cleanupRequestTemp(req.requestTempDir);
+    return;
+  }
+
+  const direction = typeof req.body?.direction === 'string' ? req.body.direction.trim().toLowerCase() : '';
+  const target = typeof req.body?.target === 'string' ? req.body.target.trim().toLowerCase() : '';
+  const validDirections = new Set(['to-pdf', 'from-pdf']);
+  const validTargets = new Set(['jpg', 'word', 'ppt', 'excel']);
+
+  if (!validDirections.has(direction) || !validTargets.has(target)) {
+    res.status(400).json({ error: 'Parameter konversi tidak valid.' });
+    await cleanupRequestTemp(req.requestTempDir);
+    return;
+  }
+
+  const inputPath = req.file.path;
+  const inputName = req.file.originalname || path.basename(inputPath);
+  const inputBaseName = sanitizeBaseFilename(inputName);
+  const sourceCategory = detectSourceCategory(inputPath);
+
+  try {
+    let outputBuffer;
+    let outputFileName;
+    let contentType;
+    let method;
+    let conversionSource;
+    let conversionTarget;
+
+    if (direction === 'to-pdf') {
+      if (target === 'jpg') {
+        if (sourceCategory !== 'image') {
+          res.status(400).json({ error: 'Konversi JPG ke PDF hanya menerima file JPG/JPEG/PNG.' });
+          return;
+        }
+
+        outputBuffer = await convertImageToPdf(inputPath);
+        outputFileName = `${inputBaseName}.pdf`;
+        contentType = 'application/pdf';
+        method = 'pdf-lib-image-to-pdf';
+        conversionSource = 'image';
+        conversionTarget = 'pdf';
+      } else {
+        const requiredSource = target;
+        if (sourceCategory !== requiredSource) {
+          const labelMap = {
+            word: 'DOC/DOCX',
+            ppt: 'PPT/PPTX',
+            excel: 'XLS/XLSX',
+          };
+          res.status(400).json({ error: `Konversi ${target.toUpperCase()} ke PDF hanya menerima file ${labelMap[target]}.` });
+          return;
+        }
+
+        const libreOfficeCommand = await getLibreOfficeCommand();
+        if (!libreOfficeCommand) {
+          res.status(503).json({ error: 'LibreOffice tidak tersedia di backend.' });
+          return;
+        }
+
+        await runLibreOfficeConvert(inputPath, req.requestTempDir, 'pdf', libreOfficeCommand);
+        const convertedPath = await findFileByExtension(req.requestTempDir, '.pdf');
+        if (!convertedPath) {
+          throw new Error('Hasil konversi PDF tidak ditemukan.');
+        }
+
+        outputBuffer = await fs.readFile(convertedPath);
+        outputFileName = `${inputBaseName}.pdf`;
+        contentType = 'application/pdf';
+        method = `libreoffice:${libreOfficeCommand}`;
+        conversionSource = target;
+        conversionTarget = 'pdf';
+      }
+    } else {
+      if (sourceCategory !== 'pdf') {
+        res.status(400).json({ error: 'Konversi dari PDF hanya menerima file PDF.' });
+        return;
+      }
+
+      if (target === 'jpg') {
+        const gsCommand = await getGhostscriptCommand();
+        if (!gsCommand) {
+          res.status(503).json({ error: 'Ghostscript tidak tersedia di backend.' });
+          return;
+        }
+
+        const outputPattern = path.join(req.requestTempDir, `${inputBaseName}_page_%03d.jpg`);
+        await runGhostscriptPdfToJpeg(inputPath, outputPattern, gsCommand);
+        const jpgFiles = await findAllFilesByExtension(req.requestTempDir, '.jpg');
+
+        if (!jpgFiles.length) {
+          throw new Error('Hasil JPG tidak ditemukan.');
+        }
+
+        const sortedJpgFiles = [...jpgFiles].sort((a, b) => a.localeCompare(b));
+
+        if (sortedJpgFiles.length === 1) {
+          outputBuffer = await fs.readFile(sortedJpgFiles[0]);
+          outputFileName = `${inputBaseName}.jpg`;
+          contentType = 'image/jpeg';
+        } else {
+          const zip = new JSZip();
+          for (const jpgFile of sortedJpgFiles) {
+            const bytes = await fs.readFile(jpgFile);
+            zip.file(path.basename(jpgFile), bytes);
+          }
+
+          outputBuffer = await zip.generateAsync({
+            type: 'nodebuffer',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 },
+          });
+          outputFileName = `${inputBaseName}_jpg.zip`;
+          contentType = 'application/zip';
+        }
+
+        method = `ghostscript:${gsCommand}`;
+        conversionSource = 'pdf';
+        conversionTarget = 'jpg';
+      } else {
+        const libreOfficeCommand = await getLibreOfficeCommand();
+        if (!libreOfficeCommand) {
+          res.status(503).json({ error: 'LibreOffice tidak tersedia di backend.' });
+          return;
+        }
+
+        const officeFormat = OFFICE_TO_FORMAT[target];
+        await runLibreOfficeConvert(inputPath, req.requestTempDir, officeFormat, libreOfficeCommand);
+        const convertedPath = await findFileByExtension(req.requestTempDir, `.${officeFormat}`);
+        if (!convertedPath) {
+          throw new Error(`Hasil konversi ${officeFormat.toUpperCase()} tidak ditemukan.`);
+        }
+
+        outputBuffer = await fs.readFile(convertedPath);
+        outputFileName = `${inputBaseName}.${officeFormat}`;
+
+        const contentTypeByExt = {
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        };
+        contentType = contentTypeByExt[officeFormat] || 'application/octet-stream';
+        method = `libreoffice:${libreOfficeCommand}`;
+        conversionSource = 'pdf';
+        conversionTarget = target;
+      }
+    }
+
+    res.locals.requestMetricsMeta = {
+      operation: 'convert',
+      method,
+      strategy: `${direction}:${target}`,
+      level: '-',
+      inputSize: Number(req.file?.size || 0),
+      outputSize: outputBuffer.length,
+      savedPercent: Number.NaN,
+    };
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${outputFileName}"`);
+    res.setHeader('X-Conversion-Method', method);
+    res.setHeader('X-Conversion-Source', conversionSource);
+    res.setHeader('X-Conversion-Target', conversionTarget);
+    res.send(outputBuffer);
+  } catch (error) {
+    console.error('Conversion error:', error);
+    res.status(500).json({ error: error.message || 'Gagal mengonversi file.' });
+  } finally {
+    await cleanupRequestTemp(req.requestTempDir);
   }
 });
 

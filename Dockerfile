@@ -2,9 +2,9 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Install Ghostscript for stronger PDF compression in production.
+# Install conversion engines for production (Ghostscript, qpdf, LibreOffice).
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ghostscript qpdf \
+  && apt-get install -y --no-install-recommends ghostscript qpdf libreoffice-core libreoffice-writer libreoffice-calc libreoffice-impress \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./

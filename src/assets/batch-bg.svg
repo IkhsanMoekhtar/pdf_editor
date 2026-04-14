@@ -1,0 +1,37 @@
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="1600" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ECFEFF" />
+      <stop offset="0.5" stop-color="#EFF6FF" />
+      <stop offset="1" stop-color="#F8FAFC" />
+    </linearGradient>
+    <linearGradient id="waveA" x1="0" y1="0" x2="1600" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8" stop-opacity="0.22" />
+      <stop offset="0.5" stop-color="#2563EB" stop-opacity="0.10" />
+      <stop offset="1" stop-color="#14B8A6" stop-opacity="0.22" />
+    </linearGradient>
+    <linearGradient id="waveB" x1="1600" y1="0" x2="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366F1" stop-opacity="0.28" />
+      <stop offset="0.5" stop-color="#0EA5E9" stop-opacity="0.10" />
+      <stop offset="1" stop-color="#38BDF8" stop-opacity="0.26" />
+    </linearGradient>
+    <radialGradient id="orbA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1260 170) rotate(137) scale(360 240)">
+      <stop stop-color="#60A5FA" stop-opacity="0.26" />
+      <stop offset="1" stop-color="#60A5FA" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="orbB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(260 830) rotate(18) scale(320 210)">
+      <stop stop-color="#14B8A6" stop-opacity="0.2" />
+      <stop offset="1" stop-color="#14B8A6" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="1000" fill="url(#base)" />
+  <ellipse cx="1260" cy="170" rx="360" ry="240" fill="url(#orbA)" />
+  <ellipse cx="260" cy="830" rx="320" ry="210" fill="url(#orbB)" />
+
+  <path d="M-120 220 C110 130 280 300 520 220 C760 140 940 300 1180 220 C1340 168 1460 178 1720 240" stroke="url(#waveA)" stroke-width="30" stroke-linecap="round" fill="none"/>
+  <path d="M-120 760 C80 680 280 850 500 760 C740 662 940 840 1180 760 C1360 698 1500 714 1720 780" stroke="url(#waveB)" stroke-width="24" stroke-linecap="round" fill="none"/>
+
+  <path d="M-120 280 C120 205 290 340 510 280 C760 210 960 340 1180 280 C1370 226 1510 236 1720 300" stroke="#0EA5E9" stroke-opacity="0.16" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <path d="M-120 700 C90 628 280 800 500 700 C740 604 950 796 1180 700 C1360 638 1500 654 1720 716" stroke="#4F46E5" stroke-opacity="0.14" stroke-width="10" stroke-linecap="round" fill="none"/>
+</svg>

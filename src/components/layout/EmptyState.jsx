@@ -25,7 +25,7 @@ export default function EmptyState({ onUpload }) {
       />
       <div className="clipboard">
         <div className="clipboard-paper">
-          <div className="clipboard-header">Kanvas Anda</div>
+          <div className="clipboard-header">Your Paper</div>
           <div className="clipboard-content">
             <div className="empty-line large"></div>
             <div className="empty-line"></div>
