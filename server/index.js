@@ -245,6 +245,7 @@ const compressRateLimiter = rateLimit({
 });
 
 const REQUEST_TMP_PREFIX = 'pdf-compress-';
+const DISK_WORKSPACE_ROUTES = new Set(['/api/compress', '/api/convert', '/api/merge', '/api/split']);
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png']);
 const WORD_EXTENSIONS = new Set(['.doc', '.docx']);
@@ -272,10 +273,17 @@ async function cleanupRequestTemp(tempDir) {
 app.use(async (req, _res, next) => {
   try {
     const requestId = crypto.randomUUID();
+    req.requestId = requestId;
+
+    const needsDiskWorkspace = req.method === 'POST' && DISK_WORKSPACE_ROUTES.has(req.path);
+    if (!needsDiskWorkspace) {
+      req.requestTempDir = null;
+      next();
+      return;
+    }
+
     const requestTempDir = path.join(os.tmpdir(), `${REQUEST_TMP_PREFIX}${requestId}`);
     await fs.mkdir(requestTempDir, { recursive: true });
-
-    req.requestId = requestId;
     req.requestTempDir = requestTempDir;
     next();
   } catch (err) {
@@ -304,6 +312,15 @@ const uploadConvertStorage = multer.diskStorage({
   },
 });
 
+const uploadBatchPdfStorage = multer.diskStorage({
+  destination: (req, _file, cb) => {
+    cb(null, req.requestTempDir || os.tmpdir());
+  },
+  filename: (_req, _file, cb) => {
+    cb(null, `${crypto.randomUUID()}.pdf`);
+  },
+});
+
 const upload = multer({
   storage: uploadStorage,
   limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
@@ -317,8 +334,8 @@ const upload = multer({
   },
 });
 
-const uploadMemory = multer({
-  storage: multer.memoryStorage(),
+const uploadPdfDisk = multer({
+  storage: uploadBatchPdfStorage,
   limits: {
     fileSize: MAX_UPLOAD_MB * 1024 * 1024,
     files: 20,
@@ -1067,11 +1084,12 @@ app.get('/api/dashboard/metrics', requireDashboardAccess, (req, res) => {
   });
 });
 
-app.post('/api/merge', uploadMemory.array('pdfs', 20), async (req, res) => {
+app.post('/api/merge', uploadPdfDisk.array('pdfs', 20), async (req, res) => {
   const files = req.files || [];
 
   if (files.length < 2) {
     res.status(400).json({ error: 'Upload minimal 2 file PDF untuk digabung.' });
+    await cleanupRequestTemp(req.requestTempDir);
     return;
   }
 
@@ -1081,7 +1099,8 @@ app.post('/api/merge', uploadMemory.array('pdfs', 20), async (req, res) => {
     let totalPages = 0;
 
     for (const file of files) {
-      const srcDoc = await PDFDocument.load(file.buffer, { ignoreEncryption: true });
+      const fileBytes = await fs.readFile(file.path);
+      const srcDoc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
       const pageIndices = srcDoc.getPages().map((_, index) => index);
       const copiedPages = await mergedDoc.copyPages(srcDoc, pageIndices);
 
@@ -1114,12 +1133,15 @@ app.post('/api/merge', uploadMemory.array('pdfs', 20), async (req, res) => {
   } catch (error) {
     console.error('Merge error:', error);
     res.status(500).json({ error: 'Gagal menggabungkan PDF.' });
+  } finally {
+    await cleanupRequestTemp(req.requestTempDir);
   }
 });
 
-app.post('/api/split', uploadMemory.single('pdf'), async (req, res) => {
+app.post('/api/split', uploadPdfDisk.single('pdf'), async (req, res) => {
   if (!req.file) {
     res.status(400).json({ error: 'File PDF tidak ditemukan.' });
+    await cleanupRequestTemp(req.requestTempDir);
     return;
   }
 
@@ -1128,11 +1150,13 @@ app.post('/api/split', uploadMemory.single('pdf'), async (req, res) => {
 
   if (!allowedModes.has(mode)) {
     res.status(400).json({ error: 'Mode split tidak valid. Gunakan each atau ranges.' });
+    await cleanupRequestTemp(req.requestTempDir);
     return;
   }
 
   try {
-    const sourceDoc = await PDFDocument.load(req.file.buffer, { ignoreEncryption: true });
+    const sourceBytes = await fs.readFile(req.file.path);
+    const sourceDoc = await PDFDocument.load(sourceBytes, { ignoreEncryption: true });
     const totalPages = sourceDoc.getPageCount();
 
     if (!totalPages) {
@@ -1196,6 +1220,8 @@ app.post('/api/split', uploadMemory.single('pdf'), async (req, res) => {
   } catch (error) {
     console.error('Split error:', error);
     res.status(500).json({ error: error.message || 'Gagal memisah PDF.' });
+  } finally {
+    await cleanupRequestTemp(req.requestTempDir);
   }
 });
 
