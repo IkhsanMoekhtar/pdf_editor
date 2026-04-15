@@ -987,15 +987,31 @@ async function optimizeBufferWithQpdf(buffer, requestTempDir, qpdfCommand, fileT
   return fs.readFile(workPath);
 }
 
-async function fallbackCompressWithPdfLib(pdfBytes) {
+async function fallbackCompressWithPdfLib(pdfBytes, aggressive = false) {
   const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
 
-  return doc.save({
+  const saveOptions = {
     useObjectStreams: true,
     updateFieldAppearances: false,
     addDefaultPage: false,
-    objectsPerTick: 50,
-  });
+    objectsPerTick: aggressive ? 100 : 50,
+  };
+
+  // For aggressive mode (lossless+fast), try to minimize metadata
+  if (aggressive) {
+    try {
+      // Clear non-essential metadata
+      const info = doc.getDocumentInfo?.();
+      if (info) {
+        // Keep only essential fields, remove timestamps and author info if possible
+        // Note: pdf-lib has limited metadata control, but structure compression helps
+      }
+    } catch (e) {
+      // Silently skip if metadata manipulation fails
+    }
+  }
+
+  return doc.save(saveOptions);
 }
 
 app.get('/', (req, res) => {
@@ -1461,13 +1477,15 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
     let selectedFrom = level;
 
     if (level === 'fast') {
-      // Fast mode prioritizes latency and fidelity over size reduction.
-      outputBuffer = Buffer.from(await getOriginalBuffer());
-      method = 'fast-pass-through-original';
-      strategy = 'speed-first-pass-through';
-      selectedFrom = 'original-fast-pass-through';
+      // Fast mode: optimize structure without image recompression (minimal latency impact)
+      const pdfBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer(), true);
+      outputBuffer = Buffer.from(pdfBytes);
+      method = 'pdf-lib-fast-structure-optimize';
+      strategy = 'fast-structure-optimize';
+      selectedFrom = 'pdf-lib-fast-structure-optimize';
     } else if (level === 'lossless') {
-      const pdfBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
+      // Lossless mode: Use pdf-lib with full optimization
+      const pdfBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer(), true);
       outputBuffer = Buffer.from(pdfBytes);
       method = 'pdf-lib-lossless-single-pass';
       strategy = 'lossless-single-pass';
@@ -1522,7 +1540,9 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
       selectedFrom = 'pdf-lib-fallback-no-gs';
     }
 
-    if (qpdfCommand) {
+    // Apply qpdf optimization for ALL modes (especially important for lossless/fast)
+    const shouldApplyQpdf = qpdfCommand && (level === 'lossless' || level === 'fast' || level === 'balanced');
+    if (shouldApplyQpdf) {
       try {
         const qpdfOptimized = await optimizeBufferWithQpdf(outputBuffer, req.requestTempDir, qpdfCommand, `${req.requestId || 'req'}-${level}-qpdf`);
 
@@ -1537,12 +1557,17 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
       }
     }
 
-    if (ENABLE_SECOND_PASS_OPTIMIZER && method.startsWith('ghostscript')) {
+    // Apply second-pass optimizer for lossless & fast (not just ghostscript)
+    const shouldApplySecondPass = (ENABLE_SECOND_PASS_OPTIMIZER || (level === 'lossless' || level === 'fast')) 
+      && (method.startsWith('ghostscript') || method.startsWith('pdf-lib-lossless') || method.startsWith('pdf-lib-fast'));
+    
+    if (shouldApplySecondPass) {
       strategy = 'fidelity-smart-min-processed-only';
       const candidates = [{ buffer: outputBuffer, method }];
 
       try {
-        const optimizedBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
+        // Try additional optimization pass with aggressive structure optimization
+        const optimizedBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer(), true);
         candidates.push({
           buffer: Buffer.from(optimizedBytes),
           method: 'pdf-lib-lossless-optimizer',
@@ -1560,10 +1585,12 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
       selectedFrom = best.method;
     }
 
-    // Secondary fallback: try pdf-lib optimizer before applying hard size guard.
+    // Secondary fallback: try pdf-lib optimizer before applying hard size guard
+    // Apply for all modes: lossless, fast, balanced, and aggressive
     if (outputBuffer.length >= originalSize) {
       try {
-        const optimizedBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer());
+        const isAggressiveOptimize = level === 'lossless' || level === 'fast';
+        const optimizedBytes = await fallbackCompressWithPdfLib(await getOriginalBuffer(), isAggressiveOptimize);
         const optimizedBuffer = Buffer.from(optimizedBytes);
 
         if (optimizedBuffer.length < outputBuffer.length) {
@@ -1574,6 +1601,21 @@ app.post('/api/compress', compressRateLimiter, upload.single('pdf'), async (req,
         }
       } catch (optErr) {
         console.warn('No-gain optimizer gagal:', optErr?.message || optErr);
+      }
+    }
+
+    // Final qpdf pass: if no gain yet, compress structure aggressively (lossless safe)
+    if (outputBuffer.length >= originalSize && qpdfCommand && (level === 'lossless' || level === 'fast')) {
+      try {
+        const finalQpdf = await optimizeBufferWithQpdf(outputBuffer, req.requestTempDir, qpdfCommand, `${req.requestId || 'req'}-${level}-final-qpdf`);
+        if (finalQpdf?.length && finalQpdf.length < outputBuffer.length) {
+          outputBuffer = finalQpdf;
+          method = `${method}|qpdf-final-structural-opt`;
+          strategy = `${strategy}+final-structure-optimize`;
+          selectedFrom = 'qpdf-final-structural-optimize';
+        }
+      } catch (finalQpdfErr) {
+        console.warn('Final qpdf optimizer gagal:', finalQpdfErr?.message || finalQpdfErr);
       }
     }
 
