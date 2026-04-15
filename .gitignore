@@ -53,5 +53,9 @@ coverage
 .tmp-test/
 .tmp-convert-tests/
 
+# Vercel local files
+.vercel/
+.vercel.*
+
 # OS artifacts
 Thumbs.db

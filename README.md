@@ -147,6 +147,41 @@ Dependensi runtime di container:
 
 Langkah deploy detail ada di [HUGGINGFACE_DEPLOY.md](HUGGINGFACE_DEPLOY.md).
 
+## Deploy Frontend ke Vercel
+
+Frontend project ini bisa dijalankan di Vercel sebagai static site Vite. Backend API tetap diarahkan ke Hugging Face Space atau backend lain yang Anda pakai.
+
+### 1. Siapkan environment
+
+Set environment berikut di Vercel Project Settings:
+
+```env
+VITE_API_BASE_URL=https://<username>-pdf-backend.hf.space
+```
+
+Jika backend Anda private/gated:
+
+```env
+VITE_HF_TOKEN=<hf_token_anda>
+```
+
+### 2. Import repo ke Vercel
+
+1. Buka Vercel dan pilih `Add New -> Project`.
+2. Hubungkan repository GitHub ini.
+3. Gunakan build command `npm run build`.
+4. Gunakan output directory `dist`.
+5. Deploy project.
+
+File `vercel.json` di repo ini sudah disiapkan untuk SPA fallback agar refresh halaman tetap aman.
+
+### 3. Domain
+
+- Jika belum punya domain, Vercel otomatis memberi subdomain gratis `*.vercel.app`.
+- Jika punya domain sendiri, buka `Project Settings -> Domains`, lalu tambahkan domain tersebut.
+- Setelah itu ikuti instruksi DNS dari Vercel untuk mengarahkannya.
+- Saya tidak bisa mendaftarkan domain baru secara langsung dari sini, tetapi konfigurasi project sudah siap untuk dipasang domain apa pun.
+
 ## Keamanan dan Hygiene Repo
 
 File sensitif dan artefak lokal sudah di-ignore melalui .gitignore, termasuk:
@@ -157,6 +192,7 @@ File sensitif dan artefak lokal sudah di-ignore melalui .gitignore, termasuk:
 - .history
 - sertifikat/key file
 - folder test sementara (.tmp-test dan .tmp-convert-tests)
+- folder Vercel lokal (.vercel)
 
 ## Status Fitur (April 2026)
 
