@@ -10,6 +10,14 @@ Backend API tetap berjalan di Hugging Face Space atau server lain yang Anda pili
 - Backend API sudah aktif, misalnya di Hugging Face Space.
 - Anda punya akses ke akun Vercel.
 
+Sebelum deploy, pastikan project lokal bisa dibangun:
+
+```bash
+npm run build
+```
+
+Jika build lokal gagal, selesaikan dulu sebelum lanjut ke Vercel.
+
 ## 2. Environment Variables
 
 Atur di Vercel Project Settings -> Environment Variables:
@@ -28,17 +36,36 @@ Catatan:
 - `VITE_API_BASE_URL` wajib diisi agar frontend Vercel tahu endpoint backend produksi.
 - `VITE_HF_TOKEN` hanya diperlukan jika backend Hugging Face memakai token.
 
+Langkah kliknya di Vercel:
+
+1. Buka project Anda di Vercel.
+2. Masuk ke `Settings`.
+3. Pilih `Environment Variables`.
+4. Tambahkan `VITE_API_BASE_URL`.
+5. Jika backend private, tambahkan `VITE_HF_TOKEN`.
+6. Simpan perubahan.
+7. Redeploy project supaya env baru dipakai.
+
 ## 3. Buat Project di Vercel
 
-1. Buka Vercel.
-2. Pilih `Add New -> Project`.
-3. Import repository GitHub `frontend-pdf`.
+1. Buka https://vercel.com dan login.
+2. Klik `Add New` lalu pilih `Project`.
+3. Pilih repository GitHub `frontend-pdf`.
 4. Pastikan framework terdeteksi sebagai Vite.
-5. Build command: `npm run build`.
-6. Output directory: `dist`.
-7. Deploy.
+5. Jika perlu, set `Build Command` ke `npm run build`.
+6. Set `Output Directory` ke `dist`.
+7. Klik `Deploy`.
+8. Tunggu sampai status build menjadi `Ready`.
 
 File `vercel.json` di repo ini sudah disiapkan untuk SPA fallback.
+
+Kalau Vercel menawarkan pengaturan tambahan yang tidak relevan, biarkan default saja.
+
+Jika Anda ingin cek hasil build secara lokal sebelum deploy, gunakan:
+
+```bash
+npm run preview
+```
 
 ## 4. Domain
 
@@ -54,12 +81,18 @@ https://nama-project.vercel.app
 
 Jika Anda punya domain sendiri:
 
-1. Buka Project -> Settings -> Domains.
-2. Tambahkan domain Anda.
-3. Ikuti petunjuk DNS dari Vercel.
-4. Tunggu propagation DNS selesai.
+1. Buka project yang sudah dideploy.
+2. Klik `Settings`.
+3. Pilih `Domains`.
+4. Tambahkan domain Anda.
+5. Ikuti petunjuk DNS dari Vercel.
+6. Tunggu propagation DNS selesai sampai domain berstatus valid.
 
 Saya tidak bisa mendaftarkan domain baru dari sini, tetapi konfigurasi project sudah siap untuk dipasang domain apa pun.
+
+### Kalau belum punya domain
+
+Pakai domain gratis Vercel dulu, misalnya `https://nama-project.vercel.app`.
 
 ## 5. Checklist Verifikasi
 
@@ -69,6 +102,12 @@ Setelah deploy selesai, cek:
 2. Upload PDF berhasil.
 3. Merge/Split/Compress/Convert bisa memanggil backend production.
 4. Refresh browser pada route apa pun tetap mengarah ke aplikasi yang sama.
+
+Tambahan pengecekan cepat kalau ada masalah:
+
+- `VITE_API_BASE_URL` harus mengarah ke backend aktif.
+- Jika backend private, `VITE_HF_TOKEN` harus diisi.
+- Jika request API ditolak, pastikan backend mengizinkan domain Vercel Anda di `CORS_ORIGINS`.
 
 ## 6. Troubleshooting Cepat
 
@@ -80,3 +119,5 @@ Setelah deploy selesai, cek:
   - Isi `VITE_HF_TOKEN` pada environment Vercel.
 - File statis lama masih terbaca:
   - Redeploy project setelah update environment variables.
+- Domain custom belum aktif:
+  - Periksa DNS sesuai instruksi Vercel dan tunggu propagasi.
