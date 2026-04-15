@@ -1501,14 +1501,7 @@
 }
 
 .empty-state.desktop-scene::after {
-  width: 320px;
-  height: 320px;
-  bottom: -120px;
-  left: -120px;
-  background:
-    radial-gradient(circle, rgba(15, 23, 42, 0.24) 0 20%, rgba(15, 23, 42, 0.08) 21% 34%, rgba(15, 23, 42, 0) 35% 100%);
-  filter: blur(1px);
-  animation: splash-ring-b 7.6s ease-in-out infinite;
+  display: none;
 }
 
 /* Sedikit penggelapan latar belakang saat area disorot mouse */
