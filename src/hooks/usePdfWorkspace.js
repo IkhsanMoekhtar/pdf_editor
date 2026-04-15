@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 const rawApiBaseUrl = (
   import.meta.env.DEV
-    ? (import.meta.env.VITE_DEV_API_BASE_URL || '')
+    ? (import.meta.env.VITE_DEV_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || '')
     : (import.meta.env.VITE_API_BASE_URL || '')
 ).trim();
 const normalizedApiBaseUrl = rawApiBaseUrl.replace(/\/$/, '');
@@ -665,11 +665,13 @@ export default function usePdfWorkspace() {
     setMergeFiles,
     setSplitFile,
     setCompressFile,
+    setIsCompressAutoFilled,
     setLastConversion,
     setCompressLevel,
     setSplitMode,
     setSplitRanges,
     setWorkspaceMode,
     setToast,
+    handleCompressPdf,
   };
 }
