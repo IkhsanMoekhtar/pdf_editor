@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
+import FeatureIconBackdrop from './FeatureIconBackdrop';
 import PdfInlinePreview from './PdfInlinePreview';
 
 function useObjectUrl(file) {
@@ -98,6 +99,7 @@ export default function BatchToolsPanel({
 
   return (
     <section className="batch-panel-wrap" aria-live="polite">
+      <FeatureIconBackdrop mode={mode} />
       <div className="batch-panel">
         <div className="batch-panel-header">
           <div>

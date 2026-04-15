@@ -651,49 +651,6 @@
   color: rgba(120, 113, 108, 0.2);
 }
 
-.workspace-theme-switch {
-  position: absolute;
-  top: 14px;
-  right: 16px;
-  z-index: 4;
-  display: inline-flex;
-  gap: 8px;
-  padding: 6px;
-  border-radius: 999px;
-  background: rgba(255, 251, 245, 0.82);
-  border: 1px solid rgba(180, 83, 9, 0.16);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.11);
-  backdrop-filter: blur(4px);
-}
-
-.workspace-theme-btn {
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(255, 255, 255, 0.75);
-  color: #475569;
-  border-radius: 999px;
-  height: 34px;
-  padding: 0 11px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
-}
-
-.workspace-theme-btn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(180, 83, 9, 0.35);
-}
-
-.workspace-theme-btn.active {
-  color: #ffffff;
-  background: #b45309;
-  border-color: #b45309;
-}
-
 @keyframes workspace-float {
   0%,
   100% {
@@ -702,25 +659,6 @@
 
   50% {
     transform: translate(-50%, calc(-50% - 7px)) rotate(calc(var(--bg-icon-rotate) + 2deg));
-  }
-}
-
-@media (max-width: 900px) {
-  .workspace-theme-switch {
-    top: 10px;
-    right: 10px;
-    padding: 4px;
-    gap: 5px;
-  }
-
-  .workspace-theme-btn {
-    width: 36px;
-    padding: 0;
-    justify-content: center;
-  }
-
-  .workspace-theme-btn span {
-    display: none;
   }
 }
 
@@ -1010,31 +948,92 @@
   padding: 24px;
   position: relative;
   overflow: hidden;
+  background: linear-gradient(135deg, #faf7f2 0%, #f1ebe1 55%, #f7f0e7 100%);
+}
+
+.feature-backdrop {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.feature-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   background:
-    radial-gradient(120% 120% at 10% 10%, rgba(180, 83, 9, 0.14) 0%, rgba(180, 83, 9, 0) 54%),
-    radial-gradient(110% 110% at 85% 20%, rgba(15, 23, 42, 0.08) 0%, rgba(15, 23, 42, 0) 60%),
-    linear-gradient(135deg, #faf7f2 0%, #f1ebe1 55%, #f7f0e7 100%);
+    radial-gradient(120% 110% at 12% 14%, rgba(180, 83, 9, 0.09) 0%, rgba(180, 83, 9, 0) 54%),
+    radial-gradient(110% 100% at 85% 20%, rgba(15, 23, 42, 0.08) 0%, rgba(15, 23, 42, 0) 58%),
+    radial-gradient(110% 110% at 52% 104%, rgba(107, 114, 128, 0.05) 0%, rgba(107, 114, 128, 0) 68%);
 }
 
-.batch-panel-wrap::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: url('./assets/batch-bg-vibrant.svg');
-  /* Ganti ke varian lebih berani jika diinginkan: url('./assets/batch-bg-vibrant.svg') */
-  background-size: cover;
-  background-position: center;
-  opacity: 0.22;
-  transform: scale(1.04);
+.feature-backdrop-merge::before {
+  background:
+    radial-gradient(120% 110% at 12% 14%, rgba(124, 45, 18, 0.1) 0%, rgba(124, 45, 18, 0) 54%),
+    radial-gradient(110% 100% at 85% 20%, rgba(15, 23, 42, 0.08) 0%, rgba(15, 23, 42, 0) 58%),
+    radial-gradient(110% 110% at 52% 104%, rgba(107, 114, 128, 0.05) 0%, rgba(107, 114, 128, 0) 68%);
 }
 
-.batch-panel-wrap::after {
-  content: '';
+.feature-backdrop-split::before {
+  background:
+    radial-gradient(120% 110% at 12% 14%, rgba(2, 132, 199, 0.1) 0%, rgba(2, 132, 199, 0) 54%),
+    radial-gradient(110% 100% at 85% 20%, rgba(15, 23, 42, 0.08) 0%, rgba(15, 23, 42, 0) 58%),
+    radial-gradient(110% 110% at 52% 104%, rgba(107, 114, 128, 0.05) 0%, rgba(107, 114, 128, 0) 68%);
+}
+
+.feature-backdrop-compress::before {
+  background:
+    radial-gradient(120% 110% at 12% 14%, rgba(217, 119, 6, 0.11) 0%, rgba(217, 119, 6, 0) 54%),
+    radial-gradient(110% 100% at 85% 20%, rgba(15, 23, 42, 0.08) 0%, rgba(15, 23, 42, 0) 58%),
+    radial-gradient(110% 110% at 52% 104%, rgba(107, 114, 128, 0.05) 0%, rgba(107, 114, 128, 0) 68%);
+}
+
+.feature-backdrop-convert::before {
+  background:
+    radial-gradient(120% 110% at 12% 14%, rgba(3, 105, 161, 0.11) 0%, rgba(3, 105, 161, 0) 54%),
+    radial-gradient(110% 100% at 85% 20%, rgba(15, 23, 42, 0.08) 0%, rgba(15, 23, 42, 0) 58%),
+    radial-gradient(110% 110% at 52% 104%, rgba(107, 114, 128, 0.05) 0%, rgba(107, 114, 128, 0) 68%);
+}
+
+.feature-bg-icon {
   position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(245, 240, 232, 0.5) 100%);
+  transform: translate(-50%, -50%) rotate(var(--feature-icon-rotate));
+  color: rgba(120, 113, 108, 0.22);
+  opacity: 0.94;
+  animation: feature-float var(--feature-icon-speed, 9s) ease-in-out infinite;
+  animation-delay: var(--feature-icon-delay);
+  filter: drop-shadow(0 3px 7px rgba(28, 25, 23, 0.12));
+}
+
+.feature-backdrop-merge .feature-bg-icon {
+  color: rgba(124, 45, 18, 0.3);
+}
+
+.feature-backdrop-split .feature-bg-icon {
+  color: rgba(2, 132, 199, 0.28);
+}
+
+.feature-backdrop-compress .feature-bg-icon {
+  color: rgba(217, 119, 6, 0.28);
+}
+
+.feature-backdrop-convert .feature-bg-icon {
+  color: rgba(3, 105, 161, 0.28);
+}
+
+@keyframes feature-float {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) rotate(var(--feature-icon-rotate));
+  }
+
+  50% {
+    transform: translate(-50%, calc(-50% - 7px)) rotate(calc(var(--feature-icon-rotate) + 2deg));
+  }
 }
 
 .batch-panel {
@@ -1490,11 +1489,26 @@
 }
 
 .empty-state.desktop-scene::before {
-  display: none;
+  width: 380px;
+  height: 380px;
+  top: -120px;
+  right: -120px;
+  background:
+    radial-gradient(circle, rgba(180, 83, 9, 0.28) 0 22%, rgba(180, 83, 9, 0.09) 23% 36%, rgba(180, 83, 9, 0) 37% 100%);
+  filter: blur(1px);
+  animation: splash-ring-a 6.8s ease-in-out infinite;
 }
 
 .empty-state.desktop-scene::after {
-  display: none;
+  width: 260px;
+  height: 260px;
+  bottom: -200px;
+  left: -220px;
+  background:
+    radial-gradient(circle, rgba(15, 23, 42, 0.24) 0 20%, rgba(15, 23, 42, 0.08) 21% 34%, rgba(15, 23, 42, 0) 35% 100%);
+  filter: blur(0.5px);
+  opacity: 0.18;
+  animation: splash-ring-b 7.6s ease-in-out infinite;
 }
 
 /* Sedikit penggelapan latar belakang saat area disorot mouse */

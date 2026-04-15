@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import FeatureIconBackdrop from './FeatureIconBackdrop';
 import PdfInlinePreview from './PdfInlinePreview';
 
 const PRESETS = [
@@ -228,6 +229,7 @@ export default function ConvertToolsPanel({
 
   return (
     <section className="batch-panel-wrap" aria-live="polite">
+      <FeatureIconBackdrop mode="convert" />
       <div className="batch-panel">
         <div className="batch-panel-header">
           <div>
