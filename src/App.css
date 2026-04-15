@@ -1559,6 +1559,16 @@
   font-size: 0.76rem;
 }
 
+.clipboard-header-skeleton {
+  width: 42%;
+  height: 12px;
+  margin: 2px auto 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(180, 83, 9, 0.12) 0%, rgba(180, 83, 9, 0.22) 50%, rgba(180, 83, 9, 0.12) 100%);
+  border-bottom: 2px solid rgba(180, 83, 9, 0.18);
+  padding-bottom: 10px;
+}
+
 .clipboard-content { flex: 1; display: flex; flex-direction: column; gap: 8px; }
 .empty-line { height: 10px; background-color: rgba(148, 163, 184, 0.22); border-radius: 999px; }
 .empty-line.large { width: 88%; }
