@@ -724,6 +724,20 @@
   gap: 6px;
 }
 
+.viewer-scroll-zoom-btn {
+  border-style: dashed;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.viewer-scroll-zoom-btn.active {
+  border-style: solid;
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
 .viewer-divider {
   width: 1px;
   height: 24px;

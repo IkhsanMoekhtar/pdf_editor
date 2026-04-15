@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { 
   ChevronLeft, ChevronRight, 
-  ZoomIn, ZoomOut, RotateCcw, RotateCw, 
+  ZoomIn, ZoomOut, MousePointer2, RotateCcw, RotateCw, 
   Type, PenTool, Undo2, Redo2, Palette
 } from 'lucide-react';
 
@@ -688,8 +688,8 @@ export default function PdfViewer({
             {(renderScale * 100).toFixed(0)}%
           </p>
           
-          <button className={`action-btn viewer-action-btn ${isZoomMode ? 'active' : ''}`} onClick={() => setIsZoomMode(!isZoomMode)} title="Aktifkan mode zoom (scroll wheel desktop atau tombol +/- di mobile)">
-            <ZoomIn size={16} />
+          <button className={`action-btn viewer-action-btn viewer-scroll-zoom-btn ${isZoomMode ? 'active' : ''}`} onClick={() => setIsZoomMode(!isZoomMode)} title="Mode scroll zoom (desktop: scroll wheel)" aria-label="Toggle mode scroll zoom">
+            <MousePointer2 size={16} />
           </button>
 
           <button className="action-btn viewer-action-btn" onClick={() => handleZoomStep(-0.1)} title="Perkecil zoom">
