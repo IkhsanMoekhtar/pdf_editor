@@ -25,7 +25,15 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onOpenMerge
   return (
     <aside className={`main-sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
       <div className="brand">
-        <strong>PDF Editor</strong>
+        <button
+          type="button"
+          className="brand-button"
+          onClick={() => window.location.reload()}
+          aria-label="Refresh halaman"
+          title="Klik untuk refresh halaman"
+        >
+          <strong>PDF Editor</strong>
+        </button>
         <button
           className="mobile-close-btn"
           onClick={onCloseMobile}
