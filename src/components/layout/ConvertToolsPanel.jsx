@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import PdfInlinePreview from './PdfInlinePreview';
 
 const PRESETS = [
   { key: 'to-pdf:jpg', label: 'JPG ke PDF', direction: 'to-pdf', target: 'jpg' },
@@ -304,11 +305,7 @@ export default function ConvertToolsPanel({
                 <strong>Preview PDF</strong>
                 <span>{convertFile.name}</span>
               </div>
-              <iframe
-                className="batch-pdf-preview"
-                src={`${pdfPreviewUrl}#toolbar=0&navpanes=0`}
-                title={`Preview ${convertFile.name}`}
-              />
+              <PdfInlinePreview file={convertFile} url={pdfPreviewUrl} title={`Preview ${convertFile.name}`} />
             </div>
           )}
 

@@ -151,6 +151,18 @@ Langkah deploy detail ada di [HUGGINGFACE_DEPLOY.md](HUGGINGFACE_DEPLOY.md).
 
 Frontend project ini bisa dijalankan di Vercel sebagai static site Vite. Backend API tetap diarahkan ke Hugging Face Space atau backend lain yang Anda pakai.
 
+### Siapkan repo GitHub dulu
+
+Sebelum import ke Vercel, pastikan:
+
+1. Project sudah push ke GitHub, idealnya di branch `main`.
+2. File root ini ada di repository:
+  - `package.json`
+  - `vite.config.js`
+  - `vercel.json`
+  - `src/`
+3. Jika repository private, izinkan akses repo tersebut di GitHub App Vercel.
+
 ### 1. Siapkan environment
 
 Set environment berikut di Vercel Project Settings:
@@ -168,10 +180,13 @@ VITE_HF_TOKEN=<hf_token_anda>
 ### 2. Import repo ke Vercel
 
 1. Buka Vercel dan pilih `Add New -> Project`.
-2. Hubungkan repository GitHub ini.
-3. Gunakan build command `npm run build`.
-4. Gunakan output directory `dist`.
-5. Deploy project.
+2. Hubungkan akun GitHub kalau belum tersambung.
+3. Pilih repository `frontend-pdf`.
+4. Jika repo tidak muncul, buka pengaturan GitHub App Vercel dan aktifkan akses ke repo ini.
+5. Pilih branch yang mau dideploy, biasanya `main`.
+6. Gunakan build command `npm run build`.
+7. Gunakan output directory `dist`.
+8. Deploy project.
 
 File `vercel.json` di repo ini sudah disiapkan untuk SPA fallback agar refresh halaman tetap aman.
 

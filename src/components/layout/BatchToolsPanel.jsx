@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import PdfInlinePreview from './PdfInlinePreview';
 
 function useObjectUrl(file) {
   const [url, setUrl] = useState('');
@@ -186,9 +187,9 @@ export default function BatchToolsPanel({
                   <strong>Preview PDF</strong>
                   <span>{`${mergePreviewIndex + 1}. ${mergePreviewFile.name}`}</span>
                 </div>
-                <iframe
-                  className="batch-pdf-preview"
-                  src={`${mergePreviewUrl}#toolbar=0&navpanes=0`}
+                <PdfInlinePreview
+                  file={mergePreviewFile}
+                  url={mergePreviewUrl}
                   title={`Preview ${mergePreviewFile.name}`}
                 />
               </div>
@@ -249,9 +250,9 @@ export default function BatchToolsPanel({
                   <strong>Preview PDF</strong>
                   <span>{splitFile.name}</span>
                 </div>
-                <iframe
-                  className="batch-pdf-preview"
-                  src={`${splitPreviewUrl}#toolbar=0&navpanes=0`}
+                <PdfInlinePreview
+                  file={splitFile}
+                  url={splitPreviewUrl}
                   title={`Preview ${splitFile.name}`}
                 />
               </div>
@@ -321,9 +322,9 @@ export default function BatchToolsPanel({
                   <strong>Preview PDF</strong>
                   <span>{compressFile.name}</span>
                 </div>
-                <iframe
-                  className="batch-pdf-preview"
-                  src={`${compressPreviewUrl}#toolbar=0&navpanes=0`}
+                <PdfInlinePreview
+                  file={compressFile}
+                  url={compressPreviewUrl}
                   title={`Preview ${compressFile.name}`}
                 />
               </div>

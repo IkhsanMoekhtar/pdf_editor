@@ -36,6 +36,7 @@ export default function PdfViewer({
   const pendingPointRef = useRef(null);
   const panFrameRef = useRef(null);
   const pendingPanRef = useRef(null);
+  const panPointerIdRef = useRef(null);
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -223,18 +224,36 @@ export default function PdfViewer({
     };
   }, [numPages]);
 
-  const handleMouseDown = (e) => {
-    if (activeTool !== null) return; 
-    setIsDragging(true); setDragStart({ x: e.pageX, y: e.pageY });
-    setScrollStart({ left: scrollContainerRef.current.scrollLeft, top: scrollContainerRef.current.scrollTop });
+  const handlePanPointerDown = (e) => {
+    if (activeTool !== null) return;
+    if (e.pointerType === 'touch') return;
+    if (e.button !== undefined && e.button !== 0) return;
+
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    e.preventDefault();
+    panPointerIdRef.current = e.pointerId;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setScrollStart({ left: container.scrollLeft, top: container.scrollTop });
+
+    if (typeof e.currentTarget?.setPointerCapture === 'function') {
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Abaikan jika browser tidak mengizinkan pointer capture.
+      }
+    }
   };
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
+
+  const handlePanPointerMove = (e) => {
+    if (!isDragging || panPointerIdRef.current !== e.pointerId) return;
     e.preventDefault();
 
     pendingPanRef.current = {
-      left: scrollStart.left - (e.pageX - dragStart.x),
-      top: scrollStart.top - (e.pageY - dragStart.y),
+      left: scrollStart.left - (e.clientX - dragStart.x),
+      top: scrollStart.top - (e.clientY - dragStart.y),
     };
 
     if (panFrameRef.current) return;
@@ -249,13 +268,19 @@ export default function PdfViewer({
       pendingPanRef.current = null;
     });
   };
-  const handleMouseUpOrLeave = () => {
+
+  const handlePanPointerEnd = (e) => {
+    if (panPointerIdRef.current !== null && e.pointerId !== undefined && panPointerIdRef.current !== e.pointerId) {
+      return;
+    }
+
     if (panFrameRef.current) {
       cancelAnimationFrame(panFrameRef.current);
       panFrameRef.current = null;
     }
 
     pendingPanRef.current = null;
+    panPointerIdRef.current = null;
     setIsDragging(false);
   };
   const rotateRight = () => setRotation(prev => (prev + 90) % 360);
@@ -464,7 +489,7 @@ export default function PdfViewer({
         </div>
 
         <div className="viewer-body viewer-main">
-          <div className="pdf-paper-wrapper pdf-scroll-area" ref={scrollContainerRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUpOrLeave} onMouseLeave={handleMouseUpOrLeave} style={{ cursor: getCursorStyle(), userSelect: isDragging ? 'none' : 'auto' }}>
+          <div className="pdf-paper-wrapper pdf-scroll-area" ref={scrollContainerRef} onPointerDown={handlePanPointerDown} onPointerMove={handlePanPointerMove} onPointerUp={handlePanPointerEnd} onPointerCancel={handlePanPointerEnd} onPointerLeave={handlePanPointerEnd} style={{ cursor: getCursorStyle(), userSelect: isDragging ? 'none' : 'auto', touchAction: activeTool ? 'none' : 'pan-y pinch-zoom' }}>
             <div className="pdf-paper" style={{ position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', backgroundColor: 'white', display: 'block', margin: currentWidth > containerSize.width ? '0' : '0 auto', width: currentWidth ? `${currentWidth}px` : 'auto' }}>
               
               <Document file={file} onLoadSuccess={onDocumentLoadSuccess} loading={<div className="viewer-loading">Memuat dokumen...</div>}>
@@ -478,6 +503,7 @@ export default function PdfViewer({
                       position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
                       pointerEvents: (activeTool === 'draw' || activeTool === 'text') ? 'auto' : 'none', 
                       cursor: activeTool === 'draw' ? 'crosshair' : (activeTool === 'text' ? 'text' : 'default'),
+                      touchAction: (activeTool === 'draw' || activeTool === 'text') ? 'none' : 'auto',
                       transform: `rotate(${rotation}deg)`,
                       aspectRatio: isLandscapeRotation ? `${originalPageSize.height}/${originalPageSize.width}` : 'auto'
                   }} 
@@ -663,45 +689,56 @@ export default function PdfViewer({
           </button>
 
           {activeTool === 'text' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '4px', paddingLeft: '16px', borderLeft: '1px solid #e5e7eb' }}>
-              <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} style={{ width: '28px', height: '28px', padding: '0', border: 'none', borderRadius: '50%', cursor: 'pointer' }} title="Pilih Warna Teks" />
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
-                <span style={{fontSize: '12px', color: '#6b7280', fontWeight: 'bold'}}>Size:</span>
-                <input 
-                  type="number" 
-                  min="10" max="72" 
-                  value={textSize} 
+            <div className="viewer-tool-options">
+              <input
+                type="color"
+                value={textColor}
+                onChange={(e) => setTextColor(e.target.value)}
+                className="viewer-color-input"
+                title="Pilih Warna Teks"
+              />
+
+              <div className="viewer-size-control">
+                <span>Size:</span>
+                <input
+                  type="number"
+                  min="10"
+                  max="72"
+                  value={textSize}
                   onChange={(e) => setTextSize(Number(e.target.value))}
-                  style={{ width: '45px', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '2px 4px' }}
+                  className="viewer-number-input"
                 />
               </div>
             </div>
           )}
           
           {activeTool === 'draw' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '4px', paddingLeft: '16px', borderLeft: '1px solid #e5e7eb' }}>
+            <div className="viewer-tool-options">
               <Palette size={16} color="#6b7280" />
-              <input type="color" value={drawColor} onChange={(e) => setDrawColor(e.target.value)} style={{ width: '28px', height: '28px', padding: '0', border: 'none', borderRadius: '50%', cursor: 'pointer', overflow: 'hidden' }} title="Pilih Warna" />
-              
-              {/* TAMBAHAN BARU: Slider Ketebalan */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px' }}>
-                <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#6b7280' }}></div>
-                <input 
-                  type="range" 
-                  min="1" 
-                  max="15" 
-                  value={drawThickness} 
+              <input
+                type="color"
+                value={drawColor}
+                onChange={(e) => setDrawColor(e.target.value)}
+                className="viewer-color-input"
+                title="Pilih Warna"
+              />
+
+              <div className="viewer-thickness-control">
+                <div className="viewer-dot-small" />
+                <input
+                  type="range"
+                  min="1"
+                  max="15"
+                  value={drawThickness}
                   onChange={(e) => setDrawThickness(Number(e.target.value))}
-                  style={{ width: '60px', cursor: 'pointer' }}
+                  className="viewer-range-input"
                   title="Ketebalan Coretan"
                 />
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#6b7280' }}></div>
+                <div className="viewer-dot-large" />
               </div>
-              {/* AKHIR TAMBAHAN BARU */}
 
-              <div style={{ width: '1px', height: '20px', backgroundColor: '#e5e7eb', margin: '0 4px' }}></div>
-              
+              <div className="viewer-inline-divider" />
+
               <button className="action-btn" onClick={handleUndo} disabled={drawings.length === 0} style={{ opacity: drawings.length === 0 ? 0.4 : 1, cursor: drawings.length === 0 ? 'not-allowed' : 'pointer' }} title="Undo (Batal)">
                 <Undo2 size={16} />
               </button>
