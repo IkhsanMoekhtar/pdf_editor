@@ -4,8 +4,8 @@ import babel from '@rolldown/plugin-babel'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-  const apiProxyTarget = env.VITE_API_BASE_URL || 'http://localhost:8787';
+  const env = loadEnv(mode, '.', '');
+  const apiProxyTarget = env.VITE_DEV_API_PROXY_TARGET || 'http://localhost:8787';
 
   return {
     plugins: [

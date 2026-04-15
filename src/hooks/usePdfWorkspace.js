@@ -1,9 +1,20 @@
 import { useEffect, useState } from 'react';
 
-const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+const rawApiBaseUrl = (
+  import.meta.env.DEV
+    ? (import.meta.env.VITE_DEV_API_BASE_URL || '')
+    : (import.meta.env.VITE_API_BASE_URL || '')
+).trim();
 const normalizedApiBaseUrl = rawApiBaseUrl.replace(/\/$/, '');
 const hfToken = (import.meta.env.VITE_HF_TOKEN || '').trim();
 const supportedCompressionLevels = new Set(['fast', 'lossless', 'balanced', 'aggressive']);
+
+const isPdfFile = (file) => {
+  if (!file) return false;
+  const mimeType = typeof file.type === 'string' ? file.type.toLowerCase() : '';
+  const fileName = typeof file.name === 'string' ? file.name.toLowerCase() : '';
+  return mimeType === 'application/pdf' || fileName.endsWith('.pdf');
+};
 
 const normalizeCompressionLevel = (level) => {
   if (typeof level !== 'string') {
@@ -176,10 +187,17 @@ export default function usePdfWorkspace() {
 
   const downloadPdfBlob = (blob, fileName) => {
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
+    const objectUrl = URL.createObjectURL(blob);
+    link.href = objectUrl;
     link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(link.href);
+    document.body.removeChild(link);
+
+    window.setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+    }, 1000);
   };
 
   const formatBytes = (bytes) => {
@@ -253,8 +271,10 @@ export default function usePdfWorkspace() {
     return { blob, fileName: newFileName };
   };
 
-  const handleCompressPdf = async (level = 'balanced', fileToCompress = pdfFile, customMessage) => {
-    if (!fileToCompress) {
+  const handleCompressPdf = async (level = 'balanced', fileToCompress = null, customMessage) => {
+    const targetFile = fileToCompress || compressFile || pdfFile;
+
+    if (!targetFile) {
       showToast('Silakan upload PDF terlebih dahulu.', 'error');
       return;
     }
@@ -265,7 +285,7 @@ export default function usePdfWorkspace() {
     try {
       const safeLevel = normalizeCompressionLevel(level);
       const formData = new FormData();
-      formData.append('pdf', fileToCompress);
+      formData.append('pdf', targetFile);
       formData.append('level', safeLevel);
 
       const response = await apiFetch('/api/compress', {
@@ -285,10 +305,10 @@ export default function usePdfWorkspace() {
       }
 
       const compressedBlob = await response.blob();
-      const originalName = fileToCompress.name.replace(/\.[^/.]+$/, '');
+      const originalName = targetFile.name.replace(/\.[^/.]+$/, '');
       const compressedName = `${originalName}_compressed.pdf`;
 
-      const originalSize = Number(response.headers.get('x-original-size') || fileToCompress.size || 0);
+      const originalSize = Number(response.headers.get('x-original-size') || targetFile.size || 0);
       const compressedSize = Number(response.headers.get('x-compressed-size') || compressedBlob.size || 0);
       const rawSavedPercentHeader = response.headers.get('x-saved-percent');
       const headerSavedPercent = rawSavedPercentHeader !== null ? Number(rawSavedPercentHeader) : Number.NaN;
@@ -358,7 +378,7 @@ export default function usePdfWorkspace() {
     const pickedFile = event.target.files?.[0];
     if (!pickedFile) return;
 
-    if (pickedFile.type !== 'application/pdf') {
+    if (!isPdfFile(pickedFile)) {
       showToast('File harus berformat PDF.', 'error');
       event.target.value = '';
       return;
@@ -372,7 +392,7 @@ export default function usePdfWorkspace() {
     const pickedFile = event.target.files?.[0];
     if (!pickedFile) return;
 
-    if (pickedFile.type !== 'application/pdf') {
+    if (!isPdfFile(pickedFile)) {
       showToast('File harus berformat PDF.', 'error');
       event.target.value = '';
       return;

@@ -95,6 +95,7 @@ function App() {
             mergeFiles={workspace.mergeFiles}
             splitFile={workspace.splitFile}
             compressFile={workspace.compressFile}
+            pdfFile={workspace.pdfFile}
             compressLevel={workspace.compressLevel}
             lastCompression={workspace.lastCompression}
             backendStatus={workspace.backendStatus}
@@ -106,7 +107,7 @@ function App() {
             onCompressFileSelected={workspace.handleCompressFileSelected}
             onRunMerge={workspace.handleMergePdf}
             onRunSplit={workspace.handleSplitPdf}
-            onRunCompress={() => workspace.handleCompressPdf(workspace.compressLevel, workspace.compressFile)}
+            onRunCompress={() => workspace.handleCompressPdf(workspace.compressLevel, workspace.compressFile || workspace.pdfFile)}
             onRemoveMergeFile={(index) => workspace.setMergeFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
             onMoveMergeFile={workspace.handleMoveMergeFile}
             onClearMerge={() => workspace.setMergeFiles([])}

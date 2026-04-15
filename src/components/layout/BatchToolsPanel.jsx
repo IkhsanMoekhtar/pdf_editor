@@ -1,24 +1,26 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import FeatureIconBackdrop from './FeatureIconBackdrop';
 import PdfInlinePreview from './PdfInlinePreview';
 
 function useObjectUrl(file) {
-  const [url, setUrl] = useState('');
+  const url = useMemo(() => {
+    if (!file) {
+      return '';
+    }
+
+    return URL.createObjectURL(file);
+  }, [file]);
 
   useEffect(() => {
-    if (!file) {
-      setUrl('');
+    if (!url) {
       return undefined;
     }
 
-    const nextUrl = URL.createObjectURL(file);
-    setUrl(nextUrl);
-
     return () => {
-      URL.revokeObjectURL(nextUrl);
+      URL.revokeObjectURL(url);
     };
-  }, [file]);
+  }, [url]);
 
   return url;
 }
@@ -28,6 +30,7 @@ export default function BatchToolsPanel({
   mergeFiles,
   splitFile,
   compressFile,
+  pdfFile,
   compressLevel,
   lastCompression,
   backendStatus,
@@ -58,17 +61,6 @@ export default function BatchToolsPanel({
   const compressInputRef = useRef(null);
   const [mergePreviewIndex, setMergePreviewIndex] = useState(0);
 
-  useEffect(() => {
-    if (mergeFiles.length === 0) {
-      setMergePreviewIndex(0);
-      return;
-    }
-
-    if (mergePreviewIndex >= mergeFiles.length) {
-      setMergePreviewIndex(mergeFiles.length - 1);
-    }
-  }, [mergeFiles, mergePreviewIndex]);
-
   const pickMergeFiles = () => {
     mergeInputRef.current?.click();
   };
@@ -83,12 +75,13 @@ export default function BatchToolsPanel({
 
   const isMergeMode = mode === 'merge';
   const isSplitMode = mode === 'split';
-  const isCompressMode = mode === 'compress';
   const isGhostscriptUnavailable = backendStatus?.checked && !backendStatus?.ghostscriptAvailable;
-  const mergePreviewFile = mergeFiles[mergePreviewIndex] || null;
-  const mergePreviewUrl = useObjectUrl(mergePreviewFile);
+  const compressTargetFile = compressFile || pdfFile;
+  const safeMergePreviewIndex = mergeFiles.length === 0 ? 0 : Math.min(mergePreviewIndex, mergeFiles.length - 1);
+  const safeMergePreviewFile = mergeFiles[safeMergePreviewIndex] || null;
+  const mergePreviewUrl = useObjectUrl(safeMergePreviewFile);
   const splitPreviewUrl = useObjectUrl(splitFile);
-  const compressPreviewUrl = useObjectUrl(compressFile);
+  const compressPreviewUrl = useObjectUrl(compressTargetFile);
 
   const formatBytes = (bytes) => {
     if (!Number.isFinite(bytes) || bytes < 0) return '-';
@@ -184,16 +177,16 @@ export default function BatchToolsPanel({
               )}
             </div>
 
-            {mergePreviewFile && mergePreviewUrl && (
+            {safeMergePreviewFile && mergePreviewUrl && (
               <div className="batch-preview-box">
                 <div className="batch-preview-header">
                   <strong>Preview PDF</strong>
-                  <span>{`${mergePreviewIndex + 1}. ${mergePreviewFile.name}`}</span>
+                  <span>{`${safeMergePreviewIndex + 1}. ${safeMergePreviewFile.name}`}</span>
                 </div>
                 <PdfInlinePreview
-                  file={mergePreviewFile}
+                  file={safeMergePreviewFile}
                   url={mergePreviewUrl}
-                  title={`Preview ${mergePreviewFile.name}`}
+                  title={`Preview ${safeMergePreviewFile.name}`}
                 />
               </div>
             )}
@@ -278,7 +271,7 @@ export default function BatchToolsPanel({
               <button className="batch-action-btn subtle" onClick={onClearCompress} disabled={!compressFile}>
                 Reset File
               </button>
-              <button className="batch-action-btn primary" onClick={onRunCompress} disabled={isCompressing || !compressFile}>
+              <button className="batch-action-btn primary" onClick={onRunCompress} disabled={isCompressing || !compressTargetFile}>
                 {isCompressing ? 'Mengompres...' : 'Kompres & Unduh'}
               </button>
             </div>
@@ -312,23 +305,25 @@ export default function BatchToolsPanel({
             <p className="batch-help-note">
               {compressFile
                 ? `File dipilih: ${compressFile.name}`
-                : 'Belum ada file PDF yang dipilih.'}
+                : pdfFile
+                  ? `Menggunakan PDF yang sedang terbuka: ${pdfFile.name}`
+                  : 'Belum ada file PDF yang dipilih.'}
             </p>
 
             {compressFile && isCompressAutoFilled && (
               <p className="batch-autofill-note">File ini otomatis diambil dari PDF yang sedang terbuka di editor.</p>
             )}
 
-            {compressFile && compressPreviewUrl && (
+            {compressTargetFile && compressPreviewUrl && (
               <div className="batch-preview-box">
                 <div className="batch-preview-header">
                   <strong>Preview PDF</strong>
-                  <span>{compressFile.name}</span>
+                  <span>{compressTargetFile.name}</span>
                 </div>
                 <PdfInlinePreview
-                  file={compressFile}
+                  file={compressTargetFile}
                   url={compressPreviewUrl}
-                  title={`Preview ${compressFile.name}`}
+                  title={`Preview ${compressTargetFile.name}`}
                 />
               </div>
             )}
