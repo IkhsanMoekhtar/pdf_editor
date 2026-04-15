@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import PdfInlinePreview from './PdfInlinePreview';
 
 function useObjectUrl(file) {
@@ -162,7 +163,7 @@ export default function BatchToolsPanel({
                         disabled={index === 0}
                         title="Geser ke atas"
                       >
-                        ↑
+                        <ArrowUp size={14} aria-hidden="true" />
                       </button>
                       <button
                         className="batch-mini-btn"
@@ -170,7 +171,7 @@ export default function BatchToolsPanel({
                         disabled={index === mergeFiles.length - 1}
                         title="Geser ke bawah"
                       >
-                        ↓
+                        <ArrowDown size={14} aria-hidden="true" />
                       </button>
                       <button className="batch-mini-btn danger" onClick={() => onRemoveMergeFile(index)} title="Hapus file">
                         Hapus

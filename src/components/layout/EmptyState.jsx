@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { Coffee, PenTool, PencilLine } from 'lucide-react';
 
 export default function EmptyState({ onUpload, onNotify }) {
   const fileInputRef = useRef(null);
@@ -25,7 +26,7 @@ export default function EmptyState({ onUpload, onNotify }) {
       />
       <div className="clipboard">
         <div className="clipboard-paper">
-          <div className="clipboard-header">Your Paper</div>
+          <div className="clipboard-header">Folio Kerja</div>
           <div className="clipboard-content">
             <div className="empty-line large"></div>
             <div className="empty-line"></div>
@@ -34,11 +35,11 @@ export default function EmptyState({ onUpload, onNotify }) {
           </div>
         </div>
       </div>
-      <div className="desk-item coffee-cup">☕️</div>
-      <div className="desk-item pens">✏️ 🖋️</div>
+      <div className="desk-item coffee-cup" aria-hidden="true"><Coffee size={32} /></div>
+      <div className="desk-item pens" aria-hidden="true"><PencilLine size={30} /><PenTool size={30} /></div>
       <div className="message-container">
-        <h3>Editor PDF Siap Beraksi</h3>
-        <p>Ruang kerja ini sedang menanti sentuhan kreatif Anda.</p>
+        <h3>Taruh PDF di atas meja, lalu mulai menandai.</h3>
+        <p>Ruang ini dibuat untuk kerja cepat yang tetap terasa rapi dan manusiawi.</p>
       </div>
     </div>
   );
