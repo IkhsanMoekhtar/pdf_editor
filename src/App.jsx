@@ -1,16 +1,58 @@
-import React, { Suspense, lazy } from 'react';
-import { X } from 'lucide-react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
+import { FileText, Palette, PencilLine, Sparkles, X } from 'lucide-react';
 import Sidebar from './components/layout/Sidebar';
 import EmptyState from './components/layout/EmptyState';
 import BatchToolsPanel from './components/layout/BatchToolsPanel';
 import ConvertToolsPanel from './components/layout/ConvertToolsPanel';
+import WorkspaceIconBackdrop from './components/layout/WorkspaceIconBackdrop';
 import usePdfWorkspace from './hooks/usePdfWorkspace';
 import './App.css';
 
 const PdfViewer = lazy(() => import('./components/pdf/PdfViewer'));
+const BACKDROP_THEME_STORAGE_KEY = 'folio-backdrop-theme';
+const BACKDROP_THEMES = [
+  { key: 'auto', label: 'Auto', Icon: Sparkles },
+  { key: 'editorial', label: 'Editorial', Icon: Palette },
+  { key: 'sketch', label: 'Sketsa', Icon: PencilLine },
+  { key: 'archive', label: 'Arsip', Icon: FileText },
+];
 
 function App() {
   const workspace = usePdfWorkspace();
+  const [backdropTheme, setBackdropTheme] = useState('auto');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedTheme = window.localStorage.getItem(BACKDROP_THEME_STORAGE_KEY);
+    if (storedTheme && BACKDROP_THEMES.some((theme) => theme.key === storedTheme)) {
+      setBackdropTheme(storedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(BACKDROP_THEME_STORAGE_KEY, backdropTheme);
+  }, [backdropTheme]);
+
+  const backdropMode =
+    workspace.workspaceMode === 'convert'
+      ? 'convert'
+      : workspace.workspaceMode === 'merge' || workspace.workspaceMode === 'split' || workspace.workspaceMode === 'compress'
+        ? 'batch'
+        : workspace.pdfFile
+          ? 'editor'
+          : 'empty';
+
+  const autoBackdropTheme =
+    backdropMode === 'editor'
+      ? 'sketch'
+      : backdropMode === 'batch'
+        ? 'archive'
+        : backdropMode === 'convert'
+          ? 'editorial'
+          : 'editorial';
+
+  const resolvedBackdropTheme = backdropTheme === 'auto' ? autoBackdropTheme : backdropTheme;
 
   return (
     <div className="app-container">
@@ -52,6 +94,27 @@ function App() {
       )}
 
       <main className="workspace">
+        <WorkspaceIconBackdrop mode={backdropMode} theme={resolvedBackdropTheme} />
+
+        <div className="workspace-theme-switch" role="group" aria-label="Pilih nuansa latar ruang kerja">
+          {BACKDROP_THEMES.map((theme) => {
+            const Icon = theme.Icon;
+            return (
+              <button
+                key={theme.key}
+                type="button"
+                className={`workspace-theme-btn ${backdropTheme === theme.key ? 'active' : ''}`}
+                onClick={() => setBackdropTheme(theme.key)}
+                aria-label={`Gunakan tema ${theme.label}`}
+                title={`Tema ${theme.label}`}
+              >
+                <Icon size={15} aria-hidden="true" />
+                <span>{theme.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
         {workspace.workspaceMode === 'convert' ? (
           <ConvertToolsPanel
             convertPreset={workspace.convertPreset}
