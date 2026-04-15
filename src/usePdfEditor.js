@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 
-export function usePdfEditor() {
+export function usePdfEditor({ onNotify } = {}) {
   // --- 1. SEMUA STATE ---
   const [pdfFile, setPdfFile] = useState(null);
   const [activeTool, setActiveTool] = useState(null); 
@@ -95,7 +95,7 @@ export function usePdfEditor() {
       setFlipY(false);
       setActiveTool(null); 
     } else {
-      alert("Mohon unggah file dengan format PDF.");
+      onNotify?.('Mohon unggah file dengan format PDF.', 'error');
     }
   };
 

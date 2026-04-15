@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 
-export default function EmptyState({ onUpload }) {
+export default function EmptyState({ onUpload, onNotify }) {
   const fileInputRef = useRef(null);
 
   const handleFileUpload = (event) => {
@@ -8,7 +8,7 @@ export default function EmptyState({ onUpload }) {
     if (file && file.type === 'application/pdf') {
       onUpload(file);
     } else {
-      alert("Mohon unggah file dengan format PDF.");
+      onNotify?.('Mohon unggah file dengan format PDF.', 'error');
     }
   };
 

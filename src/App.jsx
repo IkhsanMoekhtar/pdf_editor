@@ -63,6 +63,21 @@ function App() {
   const [backendStatus, setBackendStatus] = useState({ ghostscriptAvailable: false, checked: false });
   const [lastCompression, setLastCompression] = useState(null);
   const [lastConversion, setLastConversion] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type, id: Date.now() });
+  };
+
+  useEffect(() => {
+    if (!toast) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setToast(null);
+    }, 3200);
+
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     const checkBackend = async () => {
@@ -249,7 +264,7 @@ function App() {
 
   const handleCompressPdf = async (level = 'balanced', fileToCompress = pdfFile, customMessage) => {
     if (!fileToCompress) {
-      alert('Silakan upload PDF terlebih dahulu.');
+      showToast('Silakan upload PDF terlebih dahulu.', 'error');
       return;
     }
 
@@ -311,10 +326,10 @@ function App() {
         `Ukuran: ${formatBytes(originalSize)} -> ${formatBytes(compressedSize)} (${sizeStatusLabel}: ${sizeStatusPercent}%)`,
         `Metode: ${method}`,
       ].join('\n');
-      alert(customMessage || defaultMessage);
+      showToast(customMessage || defaultMessage, 'success');
     } catch (error) {
       console.error('Gagal kompres PDF:', error);
-      alert(error.message || 'Terjadi kesalahan saat mengompres PDF.');
+      showToast(error.message || 'Terjadi kesalahan saat mengompres PDF.', 'error');
     } finally {
       setIsCompressing(false);
     }
@@ -336,7 +351,7 @@ function App() {
 
     } catch (error) {
       console.error("Gagal menyimpan PDF:", error);
-      alert("Terjadi kesalahan saat menyimpan PDF.");
+      showToast("Terjadi kesalahan saat menyimpan PDF.", 'error');
     } finally {
       setIsSaving(false);
     }
@@ -355,7 +370,7 @@ function App() {
     if (!pickedFile) return;
 
     if (pickedFile.type !== 'application/pdf') {
-      alert('File harus berformat PDF.');
+      showToast('File harus berformat PDF.', 'error');
       event.target.value = '';
       return;
     }
@@ -369,7 +384,7 @@ function App() {
     if (!pickedFile) return;
 
     if (pickedFile.type !== 'application/pdf') {
-      alert('File harus berformat PDF.');
+      showToast('File harus berformat PDF.', 'error');
       event.target.value = '';
       return;
     }
@@ -402,7 +417,7 @@ function App() {
 
   const handleMergePdf = async () => {
     if (mergeFiles.length < 2) {
-      alert('Tambahkan minimal 2 file PDF untuk digabung.');
+      showToast('Tambahkan minimal 2 file PDF untuk digabung.', 'error');
       return;
     }
 
@@ -438,10 +453,10 @@ function App() {
       );
 
       downloadPdfBlob(outputBlob, outputName);
-      alert('PDF berhasil digabung.');
+      showToast('PDF berhasil digabung.', 'success');
     } catch (error) {
       console.error('Merge error:', error);
-      alert(error.message || 'Terjadi kesalahan saat menggabungkan PDF.');
+      showToast(error.message || 'Terjadi kesalahan saat menggabungkan PDF.', 'error');
     } finally {
       setIsMerging(false);
     }
@@ -449,12 +464,12 @@ function App() {
 
   const handleSplitPdf = async () => {
     if (!splitFile) {
-      alert('Pilih file PDF terlebih dahulu.');
+      showToast('Pilih file PDF terlebih dahulu.', 'error');
       return;
     }
 
     if (splitMode === 'ranges' && !splitRanges.trim()) {
-      alert('Isi range halaman terlebih dahulu. Contoh: 1-3,5,8-10');
+      showToast('Isi range halaman terlebih dahulu. Contoh: 1-3,5,8-10', 'error');
       return;
     }
 
@@ -497,10 +512,10 @@ function App() {
       link.click();
       URL.revokeObjectURL(link.href);
 
-      alert('PDF berhasil dipisah. Hasil diunduh dalam format ZIP.');
+      showToast('PDF berhasil dipisah. Hasil diunduh dalam format ZIP.', 'success');
     } catch (error) {
       console.error('Split error:', error);
-      alert(error.message || 'Terjadi kesalahan saat memisahkan PDF.');
+      showToast(error.message || 'Terjadi kesalahan saat memisahkan PDF.', 'error');
     } finally {
       setIsSplitting(false);
     }
@@ -508,7 +523,7 @@ function App() {
 
   const handleRunConversion = async () => {
     if (!convertFile) {
-      alert('Pilih file terlebih dahulu untuk dikonversi.');
+      showToast('Pilih file terlebih dahulu untuk dikonversi.', 'error');
       return;
     }
 
@@ -561,10 +576,10 @@ function App() {
         method,
       });
 
-      alert(`Konversi berhasil. File hasil: ${outputName}`);
+      showToast(`Konversi berhasil. File hasil: ${outputName}`, 'success');
     } catch (error) {
       console.error('Conversion error:', error);
-      alert(error.message || 'Terjadi kesalahan saat mengonversi file.');
+      showToast(error.message || 'Terjadi kesalahan saat mengonversi file.', 'error');
     } finally {
       setIsConverting(false);
     }
@@ -692,7 +707,7 @@ function App() {
             />
           </Suspense>
         ) : (
-          <EmptyState onUpload={handleUpload} />
+          <EmptyState onUpload={handleUpload} onNotify={showToast} />
         )}
       </main>
 
@@ -702,6 +717,16 @@ function App() {
             <div className="global-loading-spinner" aria-hidden="true" />
             <p className="global-loading-title">Mohon Tunggu</p>
             <p className="global-loading-message">{busyMessage}</p>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="app-toast-wrap" aria-live="polite" aria-atomic="true">
+          <div className={`app-toast ${toast.type === 'error' ? 'error' : 'success'}`}>
+            <div className="app-toast-dot" aria-hidden="true" />
+            <p className="app-toast-message">{toast.message}</p>
+            <button className="app-toast-close" onClick={() => setToast(null)} aria-label="Tutup notifikasi">×</button>
           </div>
         </div>
       )}
