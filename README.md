@@ -175,6 +175,8 @@ VITE_HF_TOKEN=<hf_token_anda>
 
 File `vercel.json` di repo ini sudah disiapkan untuk SPA fallback agar refresh halaman tetap aman.
 
+Panduan langkah demi langkah ada di [VERCEL_DEPLOY.md](VERCEL_DEPLOY.md).
+
 ### 3. Domain
 
 - Jika belum punya domain, Vercel otomatis memberi subdomain gratis `*.vercel.app`.
