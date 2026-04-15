@@ -45,7 +45,7 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onOpenMerge
           aria-label="Muat ulang aplikasi"
           title="Muat ulang aplikasi"
         >
-          <strong>Folio PDF</strong>
+          <strong>Yorio PDF</strong>
         </button>
         <button
           className="mobile-close-btn"

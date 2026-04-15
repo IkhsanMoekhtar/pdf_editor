@@ -147,7 +147,7 @@ function App() {
         <div className="global-loading-overlay" role="status" aria-live="polite" aria-busy="true">
           <div className="global-loading-card">
             <div className="global-loading-spinner" aria-hidden="true" />
-            <p className="global-loading-title">Sedang Menyiapkan Folio</p>
+            <p className="global-loading-title">Sedang Menyiapkan PDF</p>
             <p className="global-loading-message">{workspace.busyMessage}</p>
           </div>
         </div>
