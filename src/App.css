@@ -1490,14 +1490,7 @@
 }
 
 .empty-state.desktop-scene::before {
-  width: 380px;
-  height: 380px;
-  top: -120px;
-  right: -120px;
-  background:
-    radial-gradient(circle, rgba(180, 83, 9, 0.28) 0 22%, rgba(180, 83, 9, 0.09) 23% 36%, rgba(180, 83, 9, 0) 37% 100%);
-  filter: blur(1px);
-  animation: splash-ring-a 6.8s ease-in-out infinite;
+  display: none;
 }
 
 .empty-state.desktop-scene::after {
