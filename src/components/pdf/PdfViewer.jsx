@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { 
   ChevronLeft, ChevronRight, 
-  ZoomIn, RotateCcw, RotateCw, 
+  ZoomIn, ZoomOut, RotateCcw, RotateCw, 
   Type, PenTool, Undo2, Redo2, Palette
 } from 'lucide-react';
 
@@ -285,6 +285,36 @@ export default function PdfViewer({
   };
   const rotateRight = () => setRotation(prev => (prev + 90) % 360);
   const rotateLeft = () => setRotation(prev => (prev - 90 + 360) % 360);
+
+  const applyZoomAtCenter = (nextZoom) => {
+    const clampedZoom = Math.min(4, Math.max(0.25, nextZoom));
+    const container = scrollContainerRef.current;
+
+    if (!container) {
+      setUserZoom(clampedZoom);
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const contentX = (container.scrollLeft + centerX) / userZoom;
+    const contentY = (container.scrollTop + centerY) / userZoom;
+
+    setUserZoom(clampedZoom);
+
+    // Wait one frame so the new scale is applied before recentering scroll.
+    requestAnimationFrame(() => {
+      if (!scrollContainerRef.current) return;
+      scrollContainerRef.current.scrollLeft = contentX * clampedZoom - centerX;
+      scrollContainerRef.current.scrollTop = contentY * clampedZoom - centerY;
+    });
+  };
+
+  const handleZoomStep = (step) => {
+    const nextZoom = userZoom + step;
+    applyZoomAtCenter(nextZoom);
+  };
 
   const getCursorStyle = () => activeTool ? 'crosshair' : isDragging ? 'grabbing' : 'grab'; 
 
@@ -658,7 +688,15 @@ export default function PdfViewer({
             {(renderScale * 100).toFixed(0)}%
           </p>
           
-          <button className={`action-btn viewer-action-btn ${isZoomMode ? 'active' : ''}`} onClick={() => setIsZoomMode(!isZoomMode)} title="Gunakan Scroll Mouse untuk Zoom">
+          <button className={`action-btn viewer-action-btn ${isZoomMode ? 'active' : ''}`} onClick={() => setIsZoomMode(!isZoomMode)} title="Aktifkan mode zoom (scroll wheel desktop atau tombol +/- di mobile)">
+            <ZoomIn size={16} />
+          </button>
+
+          <button className="action-btn viewer-action-btn" onClick={() => handleZoomStep(-0.1)} title="Perkecil zoom">
+            <ZoomOut size={16} />
+          </button>
+
+          <button className="action-btn viewer-action-btn" onClick={() => handleZoomStep(0.1)} title="Perbesar zoom">
             <ZoomIn size={16} />
           </button>
 
