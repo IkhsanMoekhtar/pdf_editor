@@ -105,6 +105,9 @@
   background: rgba(255, 255, 255, 0.96);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
+  position: relative;
+  overflow: hidden;
+  animation: toast-enter 0.24s ease-out;
 }
 
 .app-toast.success {
@@ -153,6 +156,22 @@
   color: #0f172a;
 }
 
+.app-toast::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(34, 197, 94, 0.8);
+  transform-origin: left center;
+  animation: toast-timer 3.2s linear forwards;
+}
+
+.app-toast.error::after {
+  background: rgba(239, 68, 68, 0.8);
+}
+
 @keyframes global-spin {
   from {
     transform: rotate(0deg);
@@ -160,6 +179,28 @@
 
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes toast-timer {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
   }
 }
 
