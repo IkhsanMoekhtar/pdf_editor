@@ -2,17 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureIconBackdrop from './FeatureIconBackdrop';
 import PdfInlinePreview from './PdfInlinePreview';
 
-const PRESETS = [
-  { key: 'to-pdf:jpg', label: 'JPG ke PDF', direction: 'to-pdf', target: 'jpg' },
-  { key: 'to-pdf:word', label: 'WORD ke PDF', direction: 'to-pdf', target: 'word' },
-  { key: 'to-pdf:ppt', label: 'PPT ke PDF', direction: 'to-pdf', target: 'ppt' },
-  { key: 'to-pdf:excel', label: 'EXCEL ke PDF', direction: 'to-pdf', target: 'excel' },
-  { key: 'from-pdf:jpg', label: 'PDF ke JPG', direction: 'from-pdf', target: 'jpg' },
-  { key: 'from-pdf:word', label: 'PDF ke WORD', direction: 'from-pdf', target: 'word' },
-  { key: 'from-pdf:ppt', label: 'PDF ke PPT', direction: 'from-pdf', target: 'ppt' },
-  { key: 'from-pdf:excel', label: 'PDF ke EXCEL', direction: 'from-pdf', target: 'excel' },
-];
-
 function getAcceptByPreset(direction, target) {
   if (direction === 'from-pdf') {
     return 'application/pdf,.pdf';
@@ -31,6 +20,20 @@ function getAcceptByPreset(direction, target) {
   }
 
   return '.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+}
+
+function getPresetLabel(direction, target) {
+  if (direction === 'from-pdf') {
+    if (target === 'jpg') return 'PDF ke JPG';
+    if (target === 'word') return 'PDF ke WORD';
+    if (target === 'ppt') return 'PDF ke PPT';
+    return 'PDF ke EXCEL';
+  }
+
+  if (target === 'jpg') return 'JPG ke PDF';
+  if (target === 'word') return 'WORD ke PDF';
+  if (target === 'ppt') return 'PPT ke PDF';
+  return 'EXCEL ke PDF';
 }
 
 function useObjectUrl(file) {
@@ -88,7 +91,6 @@ export default function ConvertToolsPanel({
   convertFile,
   backendStatus,
   lastConversion,
-  onSelectPreset,
   onConvertFileSelected,
   onRunConvert,
   onClearConvert,
@@ -99,9 +101,9 @@ export default function ConvertToolsPanel({
   const activePresetKey = `${convertPreset.direction}:${convertPreset.target}`;
   const [officePreview, setOfficePreview] = useState({ status: 'idle', title: '', lines: [] });
 
-  const activePreset = useMemo(
-    () => PRESETS.find((item) => item.key === activePresetKey) || PRESETS[0],
-    [activePresetKey],
+  const activePresetLabel = useMemo(
+    () => getPresetLabel(convertPreset.direction, convertPreset.target),
+    [convertPreset.direction, convertPreset.target],
   );
 
   const acceptValue = useMemo(
@@ -233,26 +235,12 @@ export default function ConvertToolsPanel({
       <div className="batch-panel">
         <div className="batch-panel-header">
           <div>
-            <h2>Konversi File</h2>
-            <p>Pilih jenis konversi, upload file, lalu unduh hasilnya. Mode Office membutuhkan LibreOffice aktif di backend.</p>
+            <h2>{activePresetLabel}</h2>
+            <p>Upload file untuk subfitur ini, lalu unduh hasilnya. Mode Office membutuhkan LibreOffice aktif di backend.</p>
           </div>
           <button className="batch-link-btn" onClick={onBackToEditor}>
             Kembali ke editor
           </button>
-        </div>
-
-        <div className="convert-preset-grid" role="list" aria-label="Daftar jenis konversi">
-          {PRESETS.map((preset) => (
-            <button
-              key={preset.key}
-              role="listitem"
-              className={`convert-preset-btn ${activePresetKey === preset.key ? 'active' : ''}`}
-              onClick={() => onSelectPreset({ direction: preset.direction, target: preset.target })}
-              disabled={isConverting}
-            >
-              {preset.label}
-            </button>
-          ))}
         </div>
 
         <div className="batch-panel-body">
@@ -276,14 +264,14 @@ export default function ConvertToolsPanel({
               onClick={onRunConvert}
               disabled={isConverting || !convertFile || isLibreOfficeUnavailable}
             >
-              {isConverting ? 'Mengonversi...' : `Konversi ${activePreset.label}`}
+              {isConverting ? 'Mengonversi...' : `Konversi ${activePresetLabel}`}
             </button>
           </div>
 
           <div className="batch-form-grid">
             <div className="batch-field">
               <span>Konversi Aktif</span>
-              <input value={activePreset.label} readOnly disabled />
+              <input value={activePresetLabel} readOnly disabled />
             </div>
             <div className="batch-field">
               <span>Status LibreOffice</span>

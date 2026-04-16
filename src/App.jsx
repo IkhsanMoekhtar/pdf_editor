@@ -14,7 +14,7 @@ function App() {
   const workspace = usePdfWorkspace();
 
   const backdropMode =
-    workspace.workspaceMode === 'convert'
+    workspace.workspaceMode.startsWith('convert:')
       ? 'convert'
       : workspace.workspaceMode === 'merge' || workspace.workspaceMode === 'split' || workspace.workspaceMode === 'compress'
         ? 'batch'
@@ -50,6 +50,7 @@ function App() {
         onOpenCompress={workspace.openCompressWorkspace}
         onOpenConvert={workspace.openConvertWorkspace}
         activeConvertKey={workspace.activeConvertKey}
+        activeConvertRoute={workspace.activeConvertRoute}
         workspaceMode={workspace.workspaceMode}
         compressOnSave={workspace.compressOnSave}
         setCompressOnSave={workspace.setCompressOnSave}
@@ -73,13 +74,12 @@ function App() {
       <main className="workspace">
         <WorkspaceIconBackdrop mode={backdropMode} theme={autoBackdropTheme} />
 
-        {workspace.workspaceMode === 'convert' ? (
+        {workspace.workspaceMode.startsWith('convert:') ? (
           <ConvertToolsPanel
             convertPreset={workspace.convertPreset}
             convertFile={workspace.convertFile}
             backendStatus={workspace.backendStatus}
             lastConversion={workspace.lastConversion}
-            onSelectPreset={workspace.openConvertWorkspace}
             onConvertFileSelected={workspace.handleConvertFileSelected}
             onRunConvert={workspace.handleRunConversion}
             onClearConvert={() => {

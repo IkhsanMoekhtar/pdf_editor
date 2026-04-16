@@ -25,6 +25,8 @@ const normalizeCompressionLevel = (level) => {
   return supportedCompressionLevels.has(normalizedLevel) ? normalizedLevel : 'balanced';
 };
 
+const getConvertWorkspaceMode = (direction, target) => `convert:${direction}:${target}`;
+
 const apiUrl = (path) => (normalizedApiBaseUrl ? `${normalizedApiBaseUrl}${path}` : path);
 const shouldAttachHfToken = normalizedApiBaseUrl.includes('.hf.space') && hfToken;
 
@@ -162,7 +164,7 @@ export default function usePdfWorkspace() {
     const safeDirection = preset?.direction === 'from-pdf' ? 'from-pdf' : 'to-pdf';
     const safeTarget = typeof preset?.target === 'string' ? preset.target : 'jpg';
     setConvertPreset({ direction: safeDirection, target: safeTarget });
-    setWorkspaceMode('convert');
+    setWorkspaceMode(getConvertWorkspaceMode(safeDirection, safeTarget));
     setActiveTool(null);
     setLastConversion(null);
   };
@@ -609,6 +611,7 @@ export default function usePdfWorkspace() {
               : '';
   const isGlobalBusy = isCompressing || isConverting || isMerging || isSplitting || isSaving || isCheckingBackend;
   const activeConvertKey = `${convertPreset.direction}:${convertPreset.target}`;
+  const activeConvertRoute = workspaceMode.startsWith('convert:') ? workspaceMode : '';
 
   return {
     pdfFile,
@@ -648,6 +651,7 @@ export default function usePdfWorkspace() {
     busyMessage,
     isGlobalBusy,
     activeConvertKey,
+    activeConvertRoute,
     handleUpload,
     openMergeWorkspace,
     openSplitWorkspace,
