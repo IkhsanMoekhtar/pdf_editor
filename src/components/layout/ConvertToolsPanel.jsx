@@ -111,7 +111,7 @@ export default function ConvertToolsPanel({
     [convertPreset.direction, convertPreset.target],
   );
 
-  const needsLibreOffice = activePreset.target !== 'jpg';
+  const needsLibreOffice = convertPreset.target !== 'jpg';
   const isLibreOfficeUnavailable = backendStatus?.checked && needsLibreOffice && !backendStatus?.libreOfficeAvailable;
   const isPdfInput = Boolean(convertFile) && (convertFile.type === 'application/pdf' || /\.pdf$/i.test(convertFile.name));
   const isImageInput = Boolean(convertFile) && (convertFile.type.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(convertFile.name));
