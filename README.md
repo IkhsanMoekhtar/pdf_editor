@@ -1,3 +1,11 @@
+---
+title: Pdf Backend
+emoji: 📄
+colorFrom: blue
+colorTo: yellow
+sdk: docker
+pinned: false
+---
 
 # PDF Editor Suite (React + Vite + Node)
 
@@ -129,12 +137,13 @@ Frontend:
 - VITE_API_BASE_URL (opsional untuk production)
 - VITE_HF_TOKEN (opsional, jika backend Space private/gated)
 
-## Deploy Backend ke Hugging Face (Docker)
+<details>
+<summary>Deploy Backend ke Hugging Face</summary>
 
 Backend production dijalankan lewat Docker image dari file:
 
-- Dockerfile
-- server/index.js
+- [Dockerfile](Dockerfile)
+- [server/index.js](server/index.js)
 
 Dependensi runtime di container:
 
@@ -147,7 +156,10 @@ Dependensi runtime di container:
 
 Langkah deploy detail ada di [HUGGINGFACE_DEPLOY.md](HUGGINGFACE_DEPLOY.md).
 
-## Deploy Frontend ke Vercel
+</details>
+
+<details>
+<summary>Deploy Frontend ke Vercel</summary>
 
 Frontend project ini bisa dijalankan di Vercel sebagai static site Vite. Backend API tetap diarahkan ke Hugging Face Space atau backend lain yang Anda pakai.
 
@@ -198,6 +210,8 @@ Panduan langkah demi langkah ada di [VERCEL_DEPLOY.md](VERCEL_DEPLOY.md).
 - Jika punya domain sendiri, buka `Project Settings -> Domains`, lalu tambahkan domain tersebut.
 - Setelah itu ikuti instruksi DNS dari Vercel untuk mengarahkannya.
 - Saya tidak bisa mendaftarkan domain baru secara langsung dari sini, tetapi konfigurasi project sudah siap untuk dipasang domain apa pun.
+
+</details>
 
 ## Keamanan dan Hygiene Repo
 
