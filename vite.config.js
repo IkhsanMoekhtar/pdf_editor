@@ -5,7 +5,11 @@ import babel from '@rolldown/plugin-babel'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
-  const apiProxyTarget = env.VITE_API_BASE_URL || 'http://localhost:8787';
+  const apiBaseUrl = env.VITE_API_BASE_URL || 'http://localhost:8787';
+  
+  // Determine if we should use proxy or direct API calls
+  const isExternalApi = apiBaseUrl.includes('http://') && !apiBaseUrl.includes('localhost') || apiBaseUrl.includes('https://');
+  const shouldUseProxy = !isExternalApi;
 
   return {
     plugins: [
@@ -36,14 +40,14 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    server: {
+    server: shouldUseProxy ? {
       proxy: {
         '/api': {
-          target: apiProxyTarget,
+          target: apiBaseUrl,
           changeOrigin: true,
           secure: false,
         },
       },
-    },
+    } : {},
   };
 })
