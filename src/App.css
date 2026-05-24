@@ -2,7 +2,9 @@
 .app-container {
   display: flex;
   flex-direction: row; /* Kembali menyamping: Kiri Sidebar, Kanan Workspace */
-  height: 100vh;
+  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
   font-family: 'Manrope', 'Segoe UI', system-ui, sans-serif;
   background:
     radial-gradient(circle at top left, rgba(180, 83, 9, 0.08), transparent 24%),
@@ -13,8 +15,8 @@
 .mobile-menu-btn {
   display: none;
   position: fixed;
-  top: 12px;
-  left: 12px;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
   z-index: 45;
   border: none;
   border-radius: 999px;
@@ -560,9 +562,10 @@
 .workspace {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
   background-color: transparent;
   transition: background 0.35s ease, box-shadow 0.35s ease;
 }
@@ -684,6 +687,10 @@
   width: 100%;
   height: 100%;
   padding: 20px;
+  padding-top: max(20px, env(safe-area-inset-top));
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
   position: relative;
 }
 
@@ -1458,7 +1465,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  min-height: 100%;
+  height: auto;
   width: 100%;
   background:
     radial-gradient(120% 120% at 20% 85%, rgba(180, 83, 9, 0.15) 0%, rgba(180, 83, 9, 0) 62%),
@@ -2078,10 +2086,17 @@
 
   .app-container {
     position: relative;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
   }
 
   .viewer-layout {
     padding: 12px 10px 16px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
 
   .viewer-controls {
@@ -2221,10 +2236,11 @@
 
   .workspace {
     width: 100%;
-    padding-top: 56px;
     padding-left: max(0px, env(safe-area-inset-left));
     padding-right: max(0px, env(safe-area-inset-right));
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    min-height: calc(100dvh - 56px);
+    height: auto;
+    overflow: visible;
   }
 
   .sidebar-footer {
@@ -2264,6 +2280,8 @@
 
   .viewer-controls {
     padding: 8px;
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
     gap: 6px;
   }
 
