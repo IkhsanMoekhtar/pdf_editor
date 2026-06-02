@@ -10,7 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { promises as fs } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import rateLimit from 'express-rate-limit';
 
 const app = express();
@@ -28,12 +28,16 @@ const LOSSLESS_MIN_GAIN_PERCENT = Number.isFinite(Number(process.env.LOSSLESS_MI
   : 0.5;
 const DASHBOARD_TOKEN = (process.env.DASHBOARD_TOKEN || '').trim();
 const DASHBOARD_RETENTION = Math.max(20, Number(process.env.DASHBOARD_RETENTION || 200));
+const OCR_LANG = process.env.OCR_LANG || 'ind+eng';
+const PYTHON_CONVERTER_TIMEOUT_MS = Number(process.env.PYTHON_CONVERTER_TIMEOUT_MS || 120_000);
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 const serverRootDir = path.dirname(fileURLToPath(import.meta.url));
+const HYBRID_CONVERTER_SCRIPT = path.join(serverRootDir, 'pdftodocx.py');
 const dashboardPublicDir = path.join(serverRootDir, 'public');
+const PYTHON_IMPORT_TEST = 'import fitz, pdf2docx, pdfplumber, pytesseract; print("ok")';
 
 app.set('trust proxy', TRUST_PROXY);
 app.use(morgan('tiny'));
@@ -929,6 +933,242 @@ async function convertOfficeViaIntermediate({
   return finalPath;
 }
 
+let cachedHybridConverterAvailable;
+let cachedPythonCommand;
+
+function getPythonCommandCandidates() {
+  const candidates = [];
+  const explicitPython = process.env.PYTHON_CMD?.trim();
+
+  if (explicitPython) {
+    candidates.push({ command: explicitPython, args: [] });
+  }
+
+  if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA;
+    const programFiles = process.env['ProgramFiles'];
+    const programFilesX86 = process.env['ProgramFiles(x86)'];
+
+    if (localAppData) {
+      candidates.push(
+        { command: path.join(localAppData, 'Programs', 'Python', 'Python312', 'python.exe'), args: [] },
+        { command: path.join(localAppData, 'Programs', 'Python', 'Python313', 'python.exe'), args: [] },
+      );
+    }
+
+    if (programFiles) {
+      candidates.push({ command: path.join(programFiles, 'Python312', 'python.exe'), args: [] });
+    }
+
+    if (programFilesX86) {
+      candidates.push({ command: path.join(programFilesX86, 'Python312', 'python.exe'), args: [] });
+    }
+
+    candidates.push(
+      { command: 'py', args: ['-3.12'] },
+      { command: 'py', args: ['-3'] },
+      { command: 'python', args: [] },
+      { command: 'python3', args: [] },
+    );
+  } else {
+    candidates.push(
+      { command: 'python3', args: [] },
+      { command: 'python', args: [] },
+    );
+  }
+
+  return candidates;
+}
+
+async function canExecutePythonCandidate(command, args = []) {
+  return new Promise((resolve) => {
+    execFile(command, [...args, '--version'], { timeout: 5000 }, (error) => {
+      resolve(!error);
+    });
+  });
+}
+
+async function resolvePythonCommand() {
+  if (cachedPythonCommand) {
+    return cachedPythonCommand;
+  }
+
+  for (const candidate of getPythonCommandCandidates()) {
+    try {
+      if (!(await canExecutePythonCandidate(candidate.command, candidate.args))) {
+        continue;
+      }
+
+      const probe = await new Promise((resolve, reject) => {
+        execFile(
+          candidate.command,
+          [...candidate.args, '-c', PYTHON_IMPORT_TEST],
+          { timeout: 10_000 },
+          (error, stdout) => {
+            if (error || !String(stdout || '').includes('ok')) {
+              reject(error || new Error('Python import probe failed.'));
+              return;
+            }
+
+            resolve(true);
+          },
+        );
+      }).catch(() => false);
+
+      if (probe) {
+        cachedPythonCommand = { command: candidate.command, args: candidate.args };
+        return cachedPythonCommand;
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+
+  return null;
+}
+
+function summarizePdfType(analysis) {
+  if (!analysis || typeof analysis !== 'object') {
+    return { pdfType: 'unknown', recommendedMethod: 'unknown' };
+  }
+
+  if (analysis.is_scanned) {
+    return { pdfType: 'scan', recommendedMethod: 'ocr' };
+  }
+
+  if (analysis.has_tables || analysis.has_multi_column || Number(analysis.hybrid_pages || 0) > 0) {
+    return { pdfType: 'text-complex', recommendedMethod: 'pdf2docx' };
+  }
+
+  return { pdfType: 'text-simple', recommendedMethod: 'layout-text' };
+}
+
+async function analyzeHybridPdf(inputPath) {
+  const pythonCommand = await resolvePythonCommand();
+  if (!pythonCommand) {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    const args = [
+      HYBRID_CONVERTER_SCRIPT,
+      '--input', inputPath,
+      '--output', path.join(os.tmpdir(), `${crypto.randomUUID()}.docx`),
+      '--lang', OCR_LANG,
+      '--analyze-only',
+    ];
+
+    execFile(
+      pythonCommand.command,
+      [...pythonCommand.args, ...args],
+      { timeout: PYTHON_CONVERTER_TIMEOUT_MS },
+      (error, stdout, stderr) => {
+        if (stderr) {
+          stderr.trim().split('\n').filter(Boolean).forEach((line) => console.log('[py]', line));
+        }
+
+        if (error) {
+          resolve(null);
+          return;
+        }
+
+        try {
+          const result = JSON.parse(stdout || '{}');
+          resolve(result && result.success ? result : null);
+        } catch {
+          resolve(null);
+        }
+      },
+    );
+  });
+}
+
+async function isHybridConverterAvailable() {
+  if (cachedHybridConverterAvailable !== undefined) {
+    return cachedHybridConverterAvailable;
+  }
+
+  try {
+    await fs.access(HYBRID_CONVERTER_SCRIPT);
+
+    const pythonCommand = await resolvePythonCommand();
+    if (!pythonCommand) {
+      throw new Error('Python command dengan dependency hybrid tidak ditemukan.');
+    }
+
+    cachedHybridConverterAvailable = true;
+  } catch (error) {
+    cachedHybridConverterAvailable = false;
+    console.warn('[hybrid-converter] tidak tersedia:', error?.message || error);
+  }
+
+  return cachedHybridConverterAvailable;
+}
+
+function runHybridConverter(inputPath, outputPath, { forceOcr = false } = {}) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      HYBRID_CONVERTER_SCRIPT,
+      '--input', inputPath,
+      '--output', outputPath,
+      '--lang', OCR_LANG,
+    ];
+
+    if (forceOcr) {
+      args.push('--force-ocr');
+    }
+
+    resolvePythonCommand().then((pythonCommand) => {
+      if (!pythonCommand) {
+        reject(new Error('Python command dengan dependency hybrid tidak ditemukan.'));
+        return;
+      }
+
+      execFile(
+        pythonCommand.command,
+        [...pythonCommand.args, ...args],
+        { timeout: PYTHON_CONVERTER_TIMEOUT_MS },
+        (error, stdout, stderr) => {
+      if (stderr) {
+        stderr.trim().split('\n').filter(Boolean).forEach((line) => console.log('[py]', line));
+      }
+
+      if (error && error.code === 2) {
+        const lowConfidenceError = new Error('Hybrid converter confidence terlalu rendah.');
+        lowConfidenceError.code = 'LOW_CONFIDENCE';
+
+        try {
+          lowConfidenceError.partialResult = JSON.parse(stdout || '{}');
+        } catch {
+          lowConfidenceError.partialResult = null;
+        }
+
+        reject(lowConfidenceError);
+        return;
+      }
+
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      try {
+        const result = JSON.parse(stdout || '{}');
+        if (!result.success) {
+          reject(new Error(result.error || 'Hybrid converter gagal.'));
+          return;
+        }
+
+        resolve(result);
+      } catch (parseError) {
+        reject(parseError);
+      }
+        },
+      );
+    }).catch(reject);
+  });
+}
+
 function runGhostscript(inputPath, outputPath, settings, gsCommand) {
   return new Promise((resolve, reject) => {
     const args = buildGhostscriptArgs(settings, inputPath, outputPath);
@@ -1012,7 +1252,7 @@ async function fallbackCompressWithPdfLib(pdfBytes, aggressive = false) {
         // Keep only essential fields, remove timestamps and author info if possible
         // Note: pdf-lib has limited metadata control, but structure compression helps
       }
-    } catch (e) {
+    } catch {
       // Silently skip if metadata manipulation fails
     }
   }
@@ -1074,6 +1314,7 @@ app.get('/api/health', async (_req, res) => {
   const gsCommand = await getGhostscriptCommand();
   const qpdfCommand = await getQpdfCommand();
   const libreOfficeCommand = await getLibreOfficeCommand();
+  const hybridConverterAvailable = await isHybridConverterAvailable();
   console.log('[Health Check] Found Ghostscript:', gsCommand);
   console.log('[Health Check] Found qpdf:', qpdfCommand);
   console.log('[Health Check] Found LibreOffice:', libreOfficeCommand);
@@ -1086,6 +1327,7 @@ app.get('/api/health', async (_req, res) => {
     qpdfCommand,
     libreOfficeAvailable: Boolean(libreOfficeCommand),
     libreOfficeCommand,
+    hybridConverterAvailable,
     secondPassOptimizerEnabled: ENABLE_SECOND_PASS_OPTIMIZER,
     dashboardEnabled: true,
     dashboardProtected: Boolean(DASHBOARD_TOKEN),
@@ -1381,61 +1623,97 @@ app.post('/api/convert', uploadConvert.single('file'), async (req, res) => {
         conversionSource = 'pdf';
         conversionTarget = 'jpg';
       } else {
-        const libreOfficeCommand = await getLibreOfficeCommand();
-        if (!libreOfficeCommand) {
-          res.status(503).json({ error: 'LibreOffice tidak tersedia di backend.' });
-          return;
+        const officeFormat = OFFICE_TO_FORMAT[target];
+        if (target === 'word') {
+          const hybridAvailable = await isHybridConverterAvailable();
+          const pdfAnalysis = hybridAvailable ? await analyzeHybridPdf(inputPath) : null;
+          const pdfSummary = summarizePdfType(pdfAnalysis?.analysis);
+
+          if (hybridAvailable) {
+            const convertedPath = path.join(req.requestTempDir, `${inputBaseName}.docx`);
+
+            try {
+              const hybridResult = await runHybridConverter(inputPath, convertedPath, {
+                forceOcr: pdfSummary.pdfType === 'scan',
+              });
+              outputBuffer = await fs.readFile(convertedPath);
+              outputFileName = `${inputBaseName}.docx`;
+              contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+              method = `hybrid:${hybridResult.method}`;
+              conversionSource = 'pdf';
+              conversionTarget = 'word';
+
+              res.setHeader('X-Pdf-Type', pdfSummary.pdfType);
+              res.setHeader('X-Pdf-Recommended-Method', pdfSummary.recommendedMethod);
+              res.setHeader('X-Hybrid-Confidence', String(hybridResult.confidence ?? ''));
+              res.setHeader('X-Hybrid-Method', hybridResult.method || 'unknown');
+              res.setHeader('X-Pdf-Is-Scanned', String(hybridResult.analysis?.is_scanned ?? false));
+              res.setHeader('X-Pdf-Has-Tables', String(hybridResult.analysis?.has_tables ?? false));
+              res.setHeader('X-Pdf-Has-Multi-Column', String(hybridResult.analysis?.has_multi_column ?? false));
+            } catch (error) {
+              if (error?.code !== 'LOW_CONFIDENCE') {
+                console.warn('[convert] hybrid fallback ke LibreOffice:', error?.message || error);
+              }
+            }
+          }
         }
 
-        const officeFormat = OFFICE_TO_FORMAT[target];
-        const officeConversionPlan = {
-          word: {
-            inputFilter: 'writer_pdf_import',
-            intermediateExt: 'odt',
-            intermediateFilter: 'writer8',
-            finalExt: 'docx',
-            finalFilter: 'Office Open XML Text',
-          },
-          ppt: {
-            inputFilter: 'impress_pdf_import',
-            intermediateExt: 'odp',
-            intermediateFilter: 'impress8',
-            finalExt: 'pptx',
-            finalFilter: 'Impress Office Open XML',
-          },
-          excel: {
-            inputFilter: 'calc_pdf_addstream_import',
-            intermediateExt: 'ods',
-            intermediateFilter: 'calc8',
-            finalExt: 'xlsx',
-            finalFilter: 'Calc Office Open XML',
-          },
-        };
+        if (!outputBuffer) {
+          const libreOfficeCommand = await getLibreOfficeCommand();
+          if (!libreOfficeCommand) {
+            res.status(503).json({ error: target === 'word' ? 'Hybrid converter dan LibreOffice tidak tersedia di backend.' : 'LibreOffice tidak tersedia di backend.' });
+            return;
+          }
 
-        const plan = officeConversionPlan[target];
-        const convertedPath = await convertOfficeViaIntermediate({
-          inputPath,
-          requestTempDir: req.requestTempDir,
-          libreOfficeCommand,
-          inputFilter: plan.inputFilter,
-          intermediateExt: plan.intermediateExt,
-          intermediateFilter: plan.intermediateFilter,
-          finalExt: plan.finalExt,
-          finalFilter: plan.finalFilter,
-        });
+          const officeConversionPlan = {
+            word: {
+              inputFilter: 'writer_pdf_import',
+              intermediateExt: 'odt',
+              intermediateFilter: 'writer8',
+              finalExt: 'docx',
+              finalFilter: 'Office Open XML Text',
+            },
+            ppt: {
+              inputFilter: 'impress_pdf_import',
+              intermediateExt: 'odp',
+              intermediateFilter: 'impress8',
+              finalExt: 'pptx',
+              finalFilter: 'Impress Office Open XML',
+            },
+            excel: {
+              inputFilter: 'calc_pdf_addstream_import',
+              intermediateExt: 'ods',
+              intermediateFilter: 'calc8',
+              finalExt: 'xlsx',
+              finalFilter: 'Calc Office Open XML',
+            },
+          };
 
-        outputBuffer = await fs.readFile(convertedPath);
-        outputFileName = `${inputBaseName}.${officeFormat}`;
+          const plan = officeConversionPlan[target];
+          const convertedPath = await convertOfficeViaIntermediate({
+            inputPath,
+            requestTempDir: req.requestTempDir,
+            libreOfficeCommand,
+            inputFilter: plan.inputFilter,
+            intermediateExt: plan.intermediateExt,
+            intermediateFilter: plan.intermediateFilter,
+            finalExt: plan.finalExt,
+            finalFilter: plan.finalFilter,
+          });
 
-        const contentTypeByExt = {
-          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-          xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        };
-        contentType = contentTypeByExt[officeFormat] || 'application/octet-stream';
-        method = `libreoffice:${libreOfficeCommand}`;
-        conversionSource = 'pdf';
-        conversionTarget = target;
+          outputBuffer = await fs.readFile(convertedPath);
+          outputFileName = `${inputBaseName}.${officeFormat}`;
+
+          const contentTypeByExt = {
+            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          };
+          contentType = contentTypeByExt[officeFormat] || 'application/octet-stream';
+          method = `libreoffice:${libreOfficeCommand}`;
+          conversionSource = 'pdf';
+          conversionTarget = target;
+        }
       }
     }
 
