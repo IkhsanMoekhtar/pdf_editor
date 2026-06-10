@@ -181,7 +181,14 @@ def convert_with_pdf2docx(pdf_path: str, output_path: str) -> dict:
 
     cv = Converter(pdf_path)
     try:
-        cv.convert(output_path, start=0, end=None)
+        cv.convert(
+            output_path,                                                                                                                                                                       
+            start=0,                                                                                                                                                                           
+            end=None,                                                                                                                                                                          
+            word_margin=0.3,   # Toleransi spasi antar kata yang lebih besar                                                                                                                   
+            char_margin=3.0,   # Toleransi spasi antar huruf ekstrem yang lebih besar                                                                                                          
+            line_margin=0.3                         
+            )
     finally:
         cv.close()
 
@@ -489,7 +496,7 @@ def main() -> int:
             )
             conversion_result = convert_with_ocr(pdf_path, output_path, lang=args.lang)
         else:
-            should_use_layout_text = not analysis["has_tables"] and not analysis["has_multi_column"]
+            should_use_layout_text = False  # Memaksa selalu menggunakan pdf2docx untuk hasil layout maksimal
 
             if should_use_layout_text:
                 log.info("Stage 2: Jalur layout-text (PDF text-based sederhana)")
