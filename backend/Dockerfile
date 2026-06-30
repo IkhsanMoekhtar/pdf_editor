@@ -5,10 +5,12 @@
 
 FROM node:20-slim
 
+# Nonaktifkan prompt interaktif saat apt install (penting untuk LibreOffice)
+ENV DEBIAN_FRONTEND=noninteractive
+
 # --- System dependencies ---
-# Komentar TIDAK boleh ada di dalam blok RUN apt-get (merusak parsing).
-# Semua package diinstall dalam satu layer agar image lebih kecil.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     ghostscript \
     tesseract-ocr \
     tesseract-ocr-ind \
@@ -44,10 +46,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy semua source code (termasuk pdftodocx.py)
 COPY . .
 
-# Hugging Face Spaces menjalankan container sebagai user non-root (UID 1000)
+# Hugging Face Spaces: buat user non-root dengan UID 1000
 RUN useradd -m -u 1000 hfuser \
     && chown -R hfuser:hfuser /app \
     && chown -R hfuser:hfuser /opt/venv \
@@ -59,6 +60,7 @@ USER hfuser
 ENV HOME=/home/hfuser
 ENV PATH="/opt/venv/bin:$PATH"
 ENV LIBREOFFICE_SKIP_LOCK_CHECK=1
+ENV DEBIAN_FRONTEND=
 
 EXPOSE 7860
 ENV PORT=7860
