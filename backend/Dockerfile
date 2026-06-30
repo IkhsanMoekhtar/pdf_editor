@@ -48,16 +48,15 @@ RUN npm ci --only=production
 
 COPY . .
 
-# Hugging Face Spaces: buat user non-root dengan UID 1000
-RUN useradd -m -u 1000 hfuser \
-    && chown -R hfuser:hfuser /app \
-    && chown -R hfuser:hfuser /opt/venv \
-    && mkdir -p /home/hfuser/.config \
-    && chown -R hfuser:hfuser /home/hfuser
+# node:20-slim sudah punya user 'node' dengan UID 1000 — tidak perlu membuat user baru
+RUN mkdir -p /home/node/.config \
+    && chown -R node:node /app \
+    && chown -R node:node /opt/venv \
+    && chown -R node:node /home/node
 
-USER hfuser
+USER node
 
-ENV HOME=/home/hfuser
+ENV HOME=/home/node
 ENV PATH="/opt/venv/bin:$PATH"
 ENV LIBREOFFICE_SKIP_LOCK_CHECK=1
 ENV DEBIAN_FRONTEND=
