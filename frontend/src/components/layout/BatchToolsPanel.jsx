@@ -59,6 +59,8 @@ export default function BatchToolsPanel({
   const mergeInputRef = useRef(null);
   const splitInputRef = useRef(null);
   const compressInputRef = useRef(null);
+  const splitReplaceRef = useRef(null);
+  const compressReplaceRef = useRef(null);
   const [mergePreviewIndex, setMergePreviewIndex] = useState(0);
 
   const pickMergeFiles = () => {
@@ -205,6 +207,20 @@ export default function BatchToolsPanel({
               <button className="batch-action-btn" onClick={pickSplitFile}>
                 Pilih File PDF
               </button>
+              {splitFile && (
+                <>
+                  <input
+                    ref={splitReplaceRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="batch-hidden-input"
+                    onChange={(e) => { onSplitFileSelected(e); splitReplaceRef.current.value = ''; }}
+                  />
+                  <button className="batch-action-btn" onClick={() => splitReplaceRef.current?.click()}>
+                    Ganti File
+                  </button>
+                </>
+              )}
               <button className="batch-action-btn subtle" onClick={onClearSplit} disabled={!splitFile}>
                 Reset File
               </button>
@@ -268,6 +284,20 @@ export default function BatchToolsPanel({
               <button className="batch-action-btn" onClick={pickCompressFile}>
                 Pilih File PDF
               </button>
+              {compressFile && (
+                <>
+                  <input
+                    ref={compressReplaceRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="batch-hidden-input"
+                    onChange={(e) => { onCompressFileSelected(e); compressReplaceRef.current.value = ''; }}
+                  />
+                  <button className="batch-action-btn" onClick={() => compressReplaceRef.current?.click()}>
+                    Ganti File
+                  </button>
+                </>
+              )}
               <button className="batch-action-btn subtle" onClick={onClearCompress} disabled={!compressFile}>
                 Reset File
               </button>
@@ -282,22 +312,32 @@ export default function BatchToolsPanel({
                 <select
                   value={compressLevel}
                   onChange={(e) => onCompressLevelChange(e.target.value)}
-                  disabled={isCompressing || isGhostscriptUnavailable}
-                  title={isGhostscriptUnavailable ? 'Level dinonaktifkan karena backend sedang fallback ke pdf-lib.' : ''}
+                  disabled={isCompressing}
                 >
-                  <option value="fast">Fast (Cepat, kompresi ringan)</option>
-                  <option value="lossless">Lossless (Kualitas Sempurna)</option>
-                  <option value="balanced">Balanced (Seimbang)</option>
-                  <option value="aggressive">Aggressive (Ukuran Minimal)</option>
+                  <option value="fast">⚡ Fast — Cepat, struktur dioptimasi</option>
+                  <option value="lossless">🔒 Lossless — Kualitas sempurna, tanpa kehilangan data</option>
+                  <option value="balanced">⚖️ Balanced — Seimbang antara ukuran &amp; kualitas</option>
+                  <option value="aggressive">🗜️ Aggressive — Ukuran paling kecil</option>
                 </select>
               </label>
 
               <div className="batch-field">
-                <span>Status Mesin</span>
+                <span>Mesin Kompresi</span>
                 <input
-                  value={backendStatus?.ghostscriptAvailable ? 'Ghostscript aktif' : 'Fallback pdf-lib aktif'}
+                  value={
+                    !backendStatus?.checked
+                      ? 'Memeriksa...'
+                      : backendStatus?.ghostscriptAvailable
+                        ? `✅ Ghostscript — Kompresi maksimal aktif`
+                        : `⚡ pdf-lib — Semua level tetap berfungsi`
+                  }
                   disabled
                   readOnly
+                  title={
+                    backendStatus?.ghostscriptAvailable
+                      ? 'Ghostscript tersedia — semua level kompresi bekerja optimal'
+                      : 'Ghostscript belum terinstall — menggunakan pdf-lib built-in. Semua level tetap bisa dipilih dengan kualitas yang baik. Install Ghostscript untuk hasil Balanced & Aggressive yang lebih maksimal.'
+                  }
                 />
               </div>
             </div>

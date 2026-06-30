@@ -21,6 +21,8 @@ export default function PdfViewer({
   setRotation,
   texts,
   setTexts,
+  onReplaceFile,
+  onNotify,
 }) {
   const viewer = usePdfViewerState({
     file,
@@ -154,6 +156,8 @@ export default function PdfViewer({
           handleRedo={viewer.handleRedo}
           canUndo={drawings.length > 0}
           canRedo={viewer.redoStack.length > 0}
+          onReplaceFile={onReplaceFile}
+          onNotify={onNotify}
         />
       </div>
     </div>

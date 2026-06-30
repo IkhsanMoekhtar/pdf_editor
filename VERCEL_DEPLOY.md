@@ -37,6 +37,7 @@ Atur di Vercel Project Settings -> Environment Variables:
 
 ```env
 VITE_API_BASE_URL=https://<username>-pdf-backend.hf.space
+VITE_SITE_URL=https://<nama-domain-anda>.xyz
 ```
 
 Jika backend Anda private/gated:
@@ -47,6 +48,7 @@ VITE_HF_TOKEN=<hf_token_anda>
 
 Catatan:
 - `VITE_API_BASE_URL` wajib diisi agar frontend Vercel tahu endpoint backend produksi.
+- `VITE_SITE_URL` wajib diisi agar metadata canonical, robots, dan sitemap memakai domain publik yang benar.
 - `VITE_HF_TOKEN` hanya diperlukan jika backend Hugging Face memakai token.
 - Jika backend membalas error `Origin tidak diizinkan oleh konfigurasi CORS.`, berarti origin Vercel Anda belum dimasukkan ke `CORS_ORIGINS` di backend.
 
@@ -56,9 +58,10 @@ Langkah kliknya di Vercel:
 2. Masuk ke `Settings`.
 3. Pilih `Environment Variables`.
 4. Tambahkan `VITE_API_BASE_URL`.
-5. Jika backend private, tambahkan `VITE_HF_TOKEN`.
-6. Simpan perubahan.
-7. Redeploy project supaya env baru dipakai.
+5. Tambahkan `VITE_SITE_URL` dengan domain publik situs Anda.
+6. Jika backend private, tambahkan `VITE_HF_TOKEN`.
+7. Simpan perubahan.
+8. Redeploy project supaya env baru dipakai.
 
 Kalau masih kena CORS, periksa juga environment backend Hugging Face dan pastikan `CORS_ORIGINS` berisi domain frontend Vercel Anda, misalnya:
 

@@ -37,21 +37,23 @@ function getPresetLabel(direction, target) {
 }
 
 function useObjectUrl(file) {
-  const [url, setUrl] = useState('');
+  const url = useMemo(() => {
+    if (!file) {
+      return '';
+    }
+
+    return URL.createObjectURL(file);
+  }, [file]);
 
   useEffect(() => {
     if (!file) {
-      setUrl('');
       return undefined;
     }
 
-    const nextUrl = URL.createObjectURL(file);
-    setUrl(nextUrl);
-
     return () => {
-      URL.revokeObjectURL(nextUrl);
+      URL.revokeObjectURL(url);
     };
-  }, [file]);
+  }, [file, url]);
 
   return url;
 }
@@ -98,7 +100,7 @@ export default function ConvertToolsPanel({
   isConverting,
 }) {
   const inputRef = useRef(null);
-  const activePresetKey = `${convertPreset.direction}:${convertPreset.target}`;
+  const replaceInputRef = useRef(null);
   const [officePreview, setOfficePreview] = useState({ status: 'idle', title: '', lines: [] });
 
   const activePresetLabel = useMemo(
@@ -236,7 +238,7 @@ export default function ConvertToolsPanel({
         <div className="batch-panel-header">
           <div>
             <h2>{activePresetLabel}</h2>
-            <p>Upload file untuk subfitur ini, lalu unduh hasilnya. Mode Office membutuhkan LibreOffice aktif di backend.</p>
+            <p>Upload file untuk subfitur ini, lalu unduh hasilnya. Mode Office sekarang memprioritaskan konversi langsung agar tampilan hasil sedekat mungkin dengan file asal.</p>
           </div>
           <button className="batch-link-btn" onClick={onBackToEditor}>
             Kembali ke editor
@@ -256,6 +258,20 @@ export default function ConvertToolsPanel({
             <button className="batch-action-btn" onClick={() => inputRef.current?.click()}>
               Pilih File Input
             </button>
+            {convertFile && (
+              <>
+                <input
+                  ref={replaceInputRef}
+                  type="file"
+                  accept={acceptValue}
+                  className="batch-hidden-input"
+                  onChange={(e) => { onConvertFileSelected(e); replaceInputRef.current.value = ''; }}
+                />
+                <button className="batch-action-btn" onClick={() => replaceInputRef.current?.click()}>
+                  Ganti File
+                </button>
+              </>
+            )}
             <button className="batch-action-btn subtle" onClick={onClearConvert} disabled={!convertFile || isConverting}>
               Reset File
             </button>

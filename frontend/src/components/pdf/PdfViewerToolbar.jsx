@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
+  FolderOpen,
   MousePointer2,
   Palette,
   PenTool,
@@ -35,9 +36,46 @@ export default function PdfViewerToolbar({
   handleRedo,
   canUndo,
   canRedo,
+  onReplaceFile,
+  onNotify,
 }) {
+  const replaceInputRef = useRef(null);
+
+  const handleReplaceChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      onNotify?.('Mohon pilih file dengan format PDF.', 'error');
+      e.target.value = '';
+      return;
+    }
+    onReplaceFile?.(file);
+    e.target.value = '';
+  };
+
   return (
     <div className="floating-action-bar viewer-action-bar">
+      {/* Tombol Ganti PDF */}
+      <input
+        ref={replaceInputRef}
+        type="file"
+        accept="application/pdf"
+        style={{ display: 'none' }}
+        onChange={handleReplaceChange}
+        aria-hidden="true"
+      />
+      <button
+        className="action-btn viewer-replace-btn"
+        onClick={() => replaceInputRef.current?.click()}
+        title="Ganti file PDF yang sedang dibuka"
+        aria-label="Ganti PDF"
+        style={{ gap: '6px' }}
+      >
+        <FolderOpen size={16} /> Ganti PDF
+      </button>
+
+      <div className="viewer-divider" />
+
       <p className="viewer-zoom-label">{(renderScale * 100).toFixed(0)}%</p>
 
       <button

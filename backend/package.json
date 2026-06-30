@@ -1,0 +1,21 @@
+{
+  "name": "backend-pdf",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "form-data": "^4.0.5",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.0",
+    "multer": "^2.0.2",
+    "pdf-lib": "^1.17.1",
+    "jszip": "^3.10.1"
+  }
+}

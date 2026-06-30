@@ -6,17 +6,21 @@ import babel from '@rolldown/plugin-babel'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   const apiBaseUrl = env.VITE_API_BASE_URL || 'http://localhost:8787';
+  const isElectronBuild = mode === 'electron';
   
   // Determine if we should use proxy or direct API calls
   const isExternalApi = apiBaseUrl.includes('http://') && !apiBaseUrl.includes('localhost') || apiBaseUrl.includes('https://');
-  const shouldUseProxy = !isExternalApi;
+  const shouldUseProxy = !isExternalApi && !isElectronBuild;
 
   return {
+    // Electron butuh path relatif ('./) agar aset bisa dimuat dari file://
+    base: isElectronBuild ? './' : '/',
     plugins: [
       react(),
       babel({ presets: [reactCompilerPreset()] })
     ],
     build: {
+      outDir: isElectronBuild ? '../electron-app/frontend-dist' : 'dist',
       rollupOptions: {
         output: {
           manualChunks(id) {

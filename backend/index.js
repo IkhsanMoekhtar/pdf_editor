@@ -39,6 +39,9 @@ const HYBRID_CONVERTER_SCRIPT = path.join(serverRootDir, 'pdftodocx.py');
 const dashboardPublicDir = path.join(serverRootDir, 'public');
 const PYTHON_IMPORT_TEST = 'import fitz, pdf2docx, pdfplumber, pytesseract; print("ok")';
 
+if (!DASHBOARD_TOKEN) {
+  console.warn('[SECURITY] DASHBOARD_TOKEN tidak di-set. Dashboard terbuka untuk umum — set variabel lingkungan DASHBOARD_TOKEN untuk proteksi.');
+}
 app.set('trust proxy', TRUST_PROXY);
 app.use(morgan('tiny'));
 app.use(helmet({
@@ -254,6 +257,14 @@ const compressRateLimiter = rateLimit({
   message: { error: 'Terlalu banyak request kompresi. Coba lagi sebentar.' },
 });
 
+const apiRateLimiter = rateLimit({
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: RATE_LIMIT_MAX * 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Terlalu banyak request. Coba lagi sebentar.' },
+});
+
 const REQUEST_TMP_PREFIX = 'pdf-compress-';
 const DISK_WORKSPACE_ROUTES = new Set(['/api/compress', '/api/convert', '/api/merge', '/api/split']);
 
@@ -360,11 +371,21 @@ const uploadPdfDisk = multer({
   },
 });
 
+const ALLOWED_CONVERT_EXTENSIONS = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx']);
+
 const uploadConvert = multer({
   storage: uploadConvertStorage,
   limits: {
     fileSize: MAX_UPLOAD_MB * 1024 * 1024,
     files: 1,
+  },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_CONVERT_EXTENSIONS.has(ext)) {
+      cb(new Error('Tipe file tidak didukung untuk konversi.'));
+      return;
+    }
+    cb(null, true);
   },
 });
 
@@ -806,12 +827,25 @@ function runLibreOfficeConvert(inputPath, outputDir, outputFilter, libreOfficeCo
 
     const proc = spawn(libreOfficeCommand, args, { windowsHide: true });
     let stderr = '';
+    let settled = false;
+
+    // Timeout agar proses LibreOffice tidak menggantung selamanya.
+    const killTimer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        proc.kill('SIGKILL');
+        reject(new Error('LibreOffice timeout: konversi melebihi batas waktu.'));
+      }
+    }, PYTHON_CONVERTER_TIMEOUT_MS);
 
     proc.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
     });
 
     proc.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimer);
       if (code === 0) {
         resolve();
       } else {
@@ -819,7 +853,12 @@ function runLibreOfficeConvert(inputPath, outputDir, outputFilter, libreOfficeCo
       }
     });
 
-    proc.on('error', (err) => reject(err));
+    proc.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimer);
+      reject(err);
+    });
   });
 }
 
@@ -1243,20 +1282,6 @@ async function fallbackCompressWithPdfLib(pdfBytes, aggressive = false) {
     objectsPerTick: aggressive ? 100 : 50,
   };
 
-  // For aggressive mode (lossless+fast), try to minimize metadata
-  if (aggressive) {
-    try {
-      // Clear non-essential metadata
-      const info = doc.getDocumentInfo?.();
-      if (info) {
-        // Keep only essential fields, remove timestamps and author info if possible
-        // Note: pdf-lib has limited metadata control, but structure compression helps
-      }
-    } catch {
-      // Silently skip if metadata manipulation fails
-    }
-  }
-
   return doc.save(saveOptions);
 }
 
@@ -1315,6 +1340,7 @@ app.get('/api/health', async (_req, res) => {
   const qpdfCommand = await getQpdfCommand();
   const libreOfficeCommand = await getLibreOfficeCommand();
   const hybridConverterAvailable = await isHybridConverterAvailable();
+  // Path binary sistem hanya dicatat di log server, tidak dikembalikan ke client.
   console.log('[Health Check] Found Ghostscript:', gsCommand);
   console.log('[Health Check] Found qpdf:', qpdfCommand);
   console.log('[Health Check] Found LibreOffice:', libreOfficeCommand);
@@ -1322,11 +1348,8 @@ app.get('/api/health', async (_req, res) => {
     ok: true,
     service: 'pdf-compress-service',
     ghostscriptAvailable: Boolean(gsCommand),
-    ghostscriptCommand: gsCommand,
     qpdfAvailable: Boolean(qpdfCommand),
-    qpdfCommand,
     libreOfficeAvailable: Boolean(libreOfficeCommand),
-    libreOfficeCommand,
     hybridConverterAvailable,
     secondPassOptimizerEnabled: ENABLE_SECOND_PASS_OPTIMIZER,
     dashboardEnabled: true,
@@ -1360,7 +1383,7 @@ app.get('/api/dashboard/metrics', requireDashboardAccess, (req, res) => {
   });
 });
 
-app.post('/api/merge', uploadPdfDisk.array('pdfs', 20), async (req, res) => {
+app.post('/api/merge', apiRateLimiter, uploadPdfDisk.array('pdfs', 20), async (req, res) => {
   const files = req.files || [];
 
   if (files.length < 2) {
@@ -1414,7 +1437,7 @@ app.post('/api/merge', uploadPdfDisk.array('pdfs', 20), async (req, res) => {
   }
 });
 
-app.post('/api/split', uploadPdfDisk.single('pdf'), async (req, res) => {
+app.post('/api/split', apiRateLimiter, uploadPdfDisk.single('pdf'), async (req, res) => {
   if (!req.file) {
     res.status(400).json({ error: 'File PDF tidak ditemukan.' });
     await cleanupRequestTemp(req.requestTempDir);
@@ -1501,7 +1524,7 @@ app.post('/api/split', uploadPdfDisk.single('pdf'), async (req, res) => {
   }
 });
 
-app.post('/api/convert', uploadConvert.single('file'), async (req, res) => {
+app.post('/api/convert', apiRateLimiter, uploadConvert.single('file'), async (req, res) => {
   if (!req.file?.path) {
     res.status(400).json({ error: 'File input tidak ditemukan.' });
     await cleanupRequestTemp(req.requestTempDir);

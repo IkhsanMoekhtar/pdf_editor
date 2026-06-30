@@ -61,6 +61,7 @@ function App() {
         isSaving={workspace.isSaving}
         isMobileOpen={workspace.isSidebarOpen}
         onCloseMobile={() => workspace.setIsSidebarOpen(false)}
+        onResetWorkspace={workspace.resetWorkspace}
       />
 
       {workspace.isSidebarOpen && (
@@ -136,6 +137,8 @@ function App() {
               setRotation={workspace.setRotation}
               texts={workspace.texts}
               setTexts={workspace.setTexts}
+              onReplaceFile={workspace.handleReplaceEditorFile}
+              onNotify={workspace.showToast}
             />
           </Suspense>
         ) : (

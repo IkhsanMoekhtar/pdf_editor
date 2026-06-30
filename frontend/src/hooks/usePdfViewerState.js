@@ -417,7 +417,7 @@ export default function usePdfViewerState({ file, activeTool, drawings, setDrawi
 
     const coords = getLogicalCoords(e);
     const newText = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       page: pageNumber,
       x: coords.x,
       y: coords.y,
@@ -438,7 +438,7 @@ export default function usePdfViewerState({ file, activeTool, drawings, setDrawi
       e.preventDefault();
       const coords = getLogicalCoords(e);
       const newText = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         page: pageNumber,
         x: coords.x,
         y: coords.y,

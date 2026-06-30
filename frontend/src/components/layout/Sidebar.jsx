@@ -41,9 +41,12 @@ export default function Sidebar({ activeTool, setActiveTool, onSave, onOpenMerge
         <button
           type="button"
           className="brand-button"
-          onClick={() => window.location.reload()}
-          aria-label="Muat ulang aplikasi"
-          title="Muat ulang aplikasi"
+          onClick={() => {
+            onResetWorkspace?.();
+            closeIfMobile();
+          }}
+          aria-label="Kembali ke halaman awal"
+          title="Kembali ke halaman awal"
         >
           <strong>Yorio PDF</strong>
         </button>

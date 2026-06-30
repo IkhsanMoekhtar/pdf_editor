@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Yorio PDF Studio membantu mengedit, menggabung, memisah, mengompres, dan mengonversi PDF secara cepat di browser." />
+    <meta name="keywords" content="PDF editor, kompres PDF, merge PDF, split PDF, convert PDF, Yorio PDF Studio" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="id_ID" />
+    <meta property="og:title" content="Yorio PDF Studio" />
+    <meta property="og:description" content="Edit, kompres, gabung, pisah, dan konversi PDF dalam satu workspace modern." />
+    <meta property="og:image" content="/favicon.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Yorio PDF Studio" />
+    <meta name="twitter:description" content="Edit, kompres, gabung, pisah, dan konversi PDF dalam satu workspace modern." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Yorio PDF Studio</title>
+    <script>
+      (() => {
+        const siteUrl = `${window.location.origin}/`;
+
+        const canonicalLink = document.createElement('link');
+        canonicalLink.rel = 'canonical';
+        canonicalLink.href = siteUrl;
+        document.head.appendChild(canonicalLink);
+
+        const structuredData = document.createElement('script');
+        structuredData.type = 'application/ld+json';
+        structuredData.textContent = JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'SoftwareApplication',
+          name: 'Yorio PDF Studio',
+          applicationCategory: 'BusinessApplication',
+          operatingSystem: 'Web',
+          description: 'Edit, kompres, gabung, pisah, dan konversi PDF dalam satu workspace modern.',
+          url: siteUrl,
+        });
+        document.head.appendChild(structuredData);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

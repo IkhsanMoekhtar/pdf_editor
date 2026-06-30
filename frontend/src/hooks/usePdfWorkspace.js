@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react';
 
-const rawApiBaseUrl = (
+// Deteksi apakah berjalan di dalam Electron desktop.
+// preload.js menginjeksi window.__ELECTRON_API_BASE__ dan window.electronAPI.apiBase
+// secara SINKRON sebelum React berjalan, sehingga nilainya sudah tersedia di sini.
+const electronApiBase = (() => {
+  if (typeof window === 'undefined') return null;
+  // Prioritas 1: dari contextBridge (preload.js - paling reliable)
+  if (window.electronAPI?.apiBase) return String(window.electronAPI.apiBase).replace(/\/$/, '');
+  // Prioritas 2: dari injeksi langsung window (fallback)
+  if (window.__ELECTRON_API_BASE__) return String(window.__ELECTRON_API_BASE__).replace(/\/$/, '');
+  return null;
+})();
+
+const rawApiBaseUrl = electronApiBase || (
   import.meta.env.DEV
     ? (import.meta.env.VITE_DEV_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || '')
     : (import.meta.env.VITE_API_BASE_URL || '')
@@ -139,6 +151,15 @@ export default function usePdfWorkspace() {
     resetViewerState();
   };
 
+  const handleReplaceEditorFile = (file) => {
+    if (!file) return;
+    setPdfFile(file);
+    setCompressFile(file);
+    setIsCompressAutoFilled(false);
+    setLastCompression(null);
+    resetViewerState();
+  };
+
   const openMergeWorkspace = () => {
     setWorkspaceMode('merge');
     setActiveTool(null);
@@ -183,8 +204,8 @@ export default function usePdfWorkspace() {
       }
     }
 
-    const plainMatch = /filename="?([^";]+)"?/i.exec(dispositionHeader);
-    return plainMatch?.[1] || fallbackName;
+    const plainMatch = /filename="([^"]+)"|filename=([^\s;]+)/i.exec(dispositionHeader);
+    return plainMatch?.[1] || plainMatch?.[2] || fallbackName;
   };
 
   const downloadPdfBlob = (blob, fileName) => {
@@ -653,6 +674,7 @@ export default function usePdfWorkspace() {
     activeConvertKey,
     activeConvertRoute,
     handleUpload,
+    handleReplaceEditorFile,
     openMergeWorkspace,
     openSplitWorkspace,
     openCompressWorkspace,
